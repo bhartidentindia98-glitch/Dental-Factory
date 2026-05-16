@@ -14,6 +14,8 @@ Open `http://127.0.0.1:5173/`.
 - `SESSION_SECRET`: set any long random text for admin login cookies.
 - `PORT`: hosting providers usually set this automatically.
 
+Admin login is disabled on production until `ADMIN_PASSWORD` is set in Render. This prevents the local demo password from working on the live website.
+
 ## Live commands
 
 - Build command: leave blank or `npm install`
@@ -26,6 +28,15 @@ Open `http://127.0.0.1:5173/`.
 3. Render can read `render.yaml` automatically.
 4. Set `ADMIN_PASSWORD` in Render environment variables.
 5. Deploy and open the generated HTTPS URL.
+6. Open `/admin.html`, log in with your Render `ADMIN_PASSWORD`, and place one test order from the storefront.
+
+## Launch smoke test
+
+1. Add one product to cart.
+2. Checkout with name, 10 digit mobile number, address, and payment mode.
+3. Copy the order ID from the checkout success message.
+4. Open `track-order.html` and search by order ID or mobile number.
+5. Open `admin.html` and confirm the order appears in Orders.
 
 ## Important
 

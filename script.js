@@ -1393,6 +1393,13 @@ async function submitCheckoutForm(event, messageNode, summaryNode) {
   const form = event.currentTarget;
   const submitButton = form.querySelector("button[type='submit']");
   const customer = checkoutCustomerFromForm(form);
+  const phoneDigits = customer.phone.replace(/\D/g, "");
+
+  if (!customer.name || phoneDigits.length !== 10 || !customer.address) {
+    if (messageNode) messageNode.textContent = "Enter name, 10 digit mobile number, and delivery address.";
+    return;
+  }
+
   submitButton.disabled = true;
   if (messageNode) messageNode.textContent = "Saving order request to backend...";
 

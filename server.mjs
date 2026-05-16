@@ -8,9 +8,10 @@ const rootDir = path.dirname(fileURLToPath(import.meta.url));
 const port = Number(process.env.PORT || 5173);
 const host = process.env.HOST || "0.0.0.0";
 const isProduction = process.env.NODE_ENV === "production";
-const adminPassword = process.env.ADMIN_PASSWORD || "DentalFactory@2026";
+const localAdminPassword = "DentalFactory@2026";
+const adminPassword = process.env.ADMIN_PASSWORD || (isProduction ? "" : localAdminPassword);
 const sessionSecret = process.env.SESSION_SECRET || "dental-factory-local-session";
-const dataDir = path.join(rootDir, "data");
+const dataDir = path.resolve(process.env.DATA_DIR || path.join(rootDir, "data"));
 const productsFile = path.join(dataDir, "products.json");
 const ordersFile = path.join(dataDir, "orders.json");
 const accountsFile = path.join(dataDir, "accounts.json");
@@ -228,16 +229,28 @@ function normalizeAccount(account) {
   };
 }
 
+function normalizeOrderItem(item) {
+  return {
+    name: String(item?.name || "").trim(),
+    price: Math.max(0, Number(item?.price || 0)),
+    qty: Math.max(1, Number.parseInt(item?.qty || 1, 10) || 1),
+  };
+}
+
+function normalizeOrderCustomer(customer) {
+  return {
+    name: String(customer?.name || "").trim(),
+    phone: String(customer?.phone || "").trim(),
+    address: String(customer?.address || "").trim(),
+    payment: String(customer?.payment || "Cash on delivery").trim(),
+  };
+}
+
 function safeOrder(order) {
   return {
     id: order.id,
-    customer: {
-      name: String(order.customer?.name || ""),
-      phone: String(order.customer?.phone || ""),
-      address: String(order.customer?.address || ""),
-      payment: String(order.customer?.payment || ""),
-    },
-    items: Array.isArray(order.items) ? order.items : [],
+    customer: normalizeOrderCustomer(order.customer),
+    items: Array.isArray(order.items) ? order.items.map(normalizeOrderItem).filter((item) => item.name) : [],
     total: Number(order.total || 0),
     status: String(order.status || "Request received"),
     createdAt: order.createdAt,
@@ -296,6 +309,10 @@ function isAdmin(req) {
 }
 
 function requireAdmin(req, res) {
+  if (!adminPassword) {
+    sendJson(res, 503, { error: "Admin password is not configured. Set ADMIN_PASSWORD in Render Environment first." });
+    return false;
+  }
   if (isAdmin(req)) return true;
   sendJson(res, 401, { error: "Admin login required" });
   return false;
@@ -364,11 +381,15 @@ async function handleApi(req, res, reqUrl) {
   }
 
   if (reqUrl.pathname === "/api/admin/session" && req.method === "GET") {
-    sendJson(res, 200, { authenticated: isAdmin(req) });
+    sendJson(res, 200, { authenticated: Boolean(adminPassword) && isAdmin(req), adminConfigured: Boolean(adminPassword) });
     return;
   }
 
   if (reqUrl.pathname === "/api/admin/login" && req.method === "POST") {
+    if (!adminPassword) {
+      sendJson(res, 503, { error: "Admin password is not configured. Set ADMIN_PASSWORD in Render Environment first." });
+      return;
+    }
     const body = await readRequestJson(req);
     if (String(body.password || "") !== adminPassword) {
       sendJson(res, 401, { error: "Wrong admin password" });
@@ -436,11 +457,25 @@ async function handleApi(req, res, reqUrl) {
   if (reqUrl.pathname === "/api/orders" && req.method === "POST") {
     const body = await readRequestJson(req);
     const orders = await readJson(ordersFile, []);
+    const customer = normalizeOrderCustomer(body.customer);
+    const items = Array.isArray(body.items) ? body.items.map(normalizeOrderItem).filter((item) => item.name) : [];
+    const total = Number(body.total || items.reduce((sum, item) => sum + item.price * item.qty, 0));
+
+    if (!customer.name || normalizePhone(customer.phone).length < 10 || !customer.address) {
+      sendJson(res, 400, { error: "Customer name, 10 digit phone number, and address are required" });
+      return;
+    }
+
+    if (!items.length || total <= 0) {
+      sendJson(res, 400, { error: "Add at least one product before placing an order" });
+      return;
+    }
+
     const order = {
       id: `DF-${String(Date.now()).slice(-6)}`,
-      customer: body.customer || {},
-      items: Array.isArray(body.items) ? body.items : [],
-      total: Number(body.total || 0),
+      customer,
+      items,
+      total,
       status: "Request received",
       createdAt: new Date().toISOString(),
     };
