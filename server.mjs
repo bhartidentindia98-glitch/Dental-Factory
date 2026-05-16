@@ -20,6 +20,9 @@ const freeShippingThreshold = 2999;
 const standardShippingFee = 99;
 const cashCodLimit = 20000;
 const freightConfirmationLimit = 25000;
+const defaultHsnCode = "9018";
+const defaultGstRate = 18;
+const defaultUnit = "Pcs";
 const defaultDataDir = path.join(rootDir, "data");
 const dataDir = path.resolve(process.env.DATA_DIR || defaultDataDir);
 const adminSessionMinutes = Math.min(720, Math.max(5, Number(process.env.ADMIN_SESSION_MINUTES || 30) || 30));
@@ -271,6 +274,9 @@ function normalizeProduct(product) {
     image: String(product.image || "assets/hero-dental-shop.png").trim(),
     description: String(product.description || "Factory-direct dental product.").trim(),
     delivery: String(product.delivery || "Dispatch estimate available after pincode.").trim(),
+    hsn: String(product.hsn || defaultHsnCode).trim(),
+    unit: String(product.unit || defaultUnit).trim(),
+    gstRate: Number(product.gstRate ?? defaultGstRate),
     updatedAt: product.updatedAt || new Date().toISOString(),
   };
 }
@@ -296,12 +302,17 @@ function normalizeOrderItem(item) {
     name: String(item?.name || "").trim(),
     price: Math.max(0, Number(item?.price || 0)),
     qty: Math.max(1, Number.parseInt(item?.qty || 1, 10) || 1),
+    hsn: String(item?.hsn || defaultHsnCode).trim(),
+    unit: String(item?.unit || defaultUnit).trim(),
+    gstRate: Number(item?.gstRate ?? defaultGstRate),
   };
 }
 
 function normalizeOrderCustomer(customer) {
   return {
     name: String(customer?.name || "").trim(),
+    clinic: String(customer?.clinic || customer?.business || "").trim(),
+    gstin: String(customer?.gstin || "").trim().toUpperCase(),
     phone: String(customer?.phone || "").trim(),
     address: String(customer?.address || "").trim(),
     payment: String(customer?.payment || "Cash on delivery").trim(),
@@ -490,6 +501,9 @@ async function checkoutPayloadFromBody(body) {
     return {
       ...item,
       price: catalogProduct?.price || item.price,
+      hsn: catalogProduct?.hsn || item.hsn || defaultHsnCode,
+      unit: catalogProduct?.unit || item.unit || defaultUnit,
+      gstRate: Number(catalogProduct?.gstRate ?? item.gstRate ?? defaultGstRate),
       category: String(catalogProduct?.category || "").toLowerCase(),
     };
   });
@@ -949,6 +963,20 @@ async function handleApi(req, res, reqUrl) {
       return;
     }
     sendJson(res, 200, publicOrder(order));
+    return;
+  }
+
+  const orderDetailMatch = reqUrl.pathname.match(/^\/api\/orders\/([^/]+)$/);
+  if (orderDetailMatch && req.method === "GET") {
+    if (!requireAdmin(req, res)) return;
+    const orderId = decodeURIComponent(orderDetailMatch[1]);
+    const orders = await readJson(ordersFile, []);
+    const order = orders.find((item) => String(item.id || "").toLowerCase() === orderId.toLowerCase());
+    if (!order) {
+      sendJson(res, 404, { error: "Order not found" });
+      return;
+    }
+    sendJson(res, 200, safeOrder(order));
     return;
   }
 

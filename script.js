@@ -90,6 +90,7 @@ const ADMIN_LOGIN_API = "/api/admin/login";
 const ADMIN_LOGOUT_API = "/api/admin/logout";
 const CUSTOMER_ACCOUNT_KEY = "dentalFactoryCustomerAccount";
 const DELIVERY_PIN_KEY = "dentalFactoryDeliveryPin";
+const LAST_ORDER_KEY = "dentalFactoryLastOrder";
 const CASH_ON_DELIVERY_METHOD = "Cash on delivery";
 const PINE_LABS_PAYMENT_METHOD = "Card swipe on delivery (Pine Labs)";
 const ONLINE_PAYMENT_METHOD = "Online payment (Razorpay)";
@@ -99,7 +100,18 @@ const CASH_COD_LIMIT = 20000;
 const FREIGHT_CONFIRMATION_LIMIT = 25000;
 const ORDER_STATUS_FLOW = ["Request received", "Callback done", "Packed", "Shipped", "Delivered"];
 const ORDER_CANCELLED_STATUS = "Cancelled";
+const DEFAULT_HSN = "9018";
+const DEFAULT_UNIT = "Pcs";
+const DEFAULT_GST_RATE = 18;
 let paymentConfig = { razorpayEnabled: false, keyId: "", currency: "INR", businessName: "Dental Factory" };
+const businessInfo = {
+  brand: "Dental Factory",
+  legalName: "Bharti Dent India",
+  gstin: "07AYHPS5357F1Z3",
+  phone: "+91 7678541041, +91 9818710749",
+  email: "bhartidentindia98@gmail.com",
+  address: "Plot no. 95, Gali no. 4, near by Nanu Mandir, Kanjhawla Industrial Area, Kanjhawla, Delhi - 110081",
+};
 
 const productDetails = {
   "Airotor Elite Handpiece": {
@@ -334,6 +346,9 @@ function normalizeAdminProduct(product) {
     rating: String(product.rating || "4.5"),
     badge: String(product.badge || "Admin added"),
     delivery: String(product.delivery || "Dispatch estimate available after pincode.").trim(),
+    hsn: String(product.hsn || DEFAULT_HSN).trim(),
+    unit: String(product.unit || DEFAULT_UNIT).trim(),
+    gstRate: Number(product.gstRate ?? DEFAULT_GST_RATE),
   };
 }
 
@@ -400,6 +415,9 @@ function cartItemsForBackend() {
     name,
     price: item.price,
     qty: item.qty,
+    hsn: getCatalogProduct(name).hsn || DEFAULT_HSN,
+    unit: getCatalogProduct(name).unit || DEFAULT_UNIT,
+    gstRate: Number(getCatalogProduct(name).gstRate ?? DEFAULT_GST_RATE),
   }));
 }
 
@@ -407,6 +425,8 @@ function checkoutCustomerFromForm(form) {
   const formData = new FormData(form);
   return {
     name: String(formData.get("name") || "").trim(),
+    clinic: String(formData.get("clinic") || "").trim(),
+    gstin: String(formData.get("gstin") || "").trim().toUpperCase(),
     phone: String(formData.get("phone") || "").trim(),
     address: String(formData.get("address") || "").trim(),
     payment: String(formData.get("payment") || "").trim(),
@@ -537,7 +557,7 @@ async function startRazorpayPayment(customer, messageNode, summaryNode, form) {
         try {
           if (messageNode) messageNode.textContent = "Verifying payment...";
           const order = await verifyRazorpayPayment(customer, response);
-          if (messageNode) messageNode.textContent = `Payment received. Order ${order.id} saved for callback.`;
+          showCheckoutSuccess(messageNode, customer, order, "Payment received.");
           cart.clear();
           renderCart();
           if (summaryNode) renderSummary(summaryNode);
@@ -553,6 +573,26 @@ async function startRazorpayPayment(customer, messageNode, summaryNode, form) {
     });
     checkout.open();
   });
+}
+
+function rememberLastOrder(order, customer = {}) {
+  try {
+    localStorage.setItem(
+      LAST_ORDER_KEY,
+      JSON.stringify({
+        id: order.id,
+        phone: customer.phone || order.customer?.phone || "",
+        createdAt: new Date().toISOString(),
+      })
+    );
+  } catch {}
+}
+
+function showCheckoutSuccess(messageNode, customer, order, prefix = "Thanks") {
+  rememberLastOrder(order, customer);
+  if (!messageNode) return;
+  const trackUrl = `track-order.html?order=${encodeURIComponent(order.id)}`;
+  messageNode.innerHTML = `${escapeHtml(prefix)} ${escapeHtml(customer.name || "")}. Order <strong>${escapeHtml(order.id)}</strong> saved. <a href="${escapeHtml(trackUrl)}">Track order</a>`;
 }
 
 function accountFromForm(form) {
@@ -595,6 +635,10 @@ function updateAccountButtons() {
 
 async function fetchBackendOrders() {
   return apiJson(ORDERS_API);
+}
+
+async function fetchBackendOrder(orderId) {
+  return apiJson(`${ORDERS_API}/${encodeURIComponent(orderId)}`);
 }
 
 async function updateBackendOrderStatus(orderId, status) {
@@ -1364,7 +1408,7 @@ function resetAdminProductForm() {
 
 function productRowTemplate(data) {
   return `
-    <strong>${escapeHtml(data.name)}<small>${escapeHtml(data.brand)}</small></strong>
+    <strong>${escapeHtml(data.name)}<small>${escapeHtml(data.brand)} | HSN ${escapeHtml(data.hsn)} | GST ${escapeHtml(data.gstRate)}%</small></strong>
     <span>${escapeHtml(data.category)}</span>
     <span>${formatMoney(data.price)}</span>
     <b>${escapeHtml(data.stock)}</b>
@@ -1385,6 +1429,9 @@ function applyProductRowData(row, data) {
   row.dataset.stock = product.stock;
   row.dataset.description = product.description;
   row.dataset.image = product.image;
+  row.dataset.hsn = product.hsn;
+  row.dataset.unit = product.unit;
+  row.dataset.gstRate = product.gstRate;
   row.innerHTML = productRowTemplate(product);
 }
 
@@ -1400,6 +1447,9 @@ function adminProductsFromRows() {
       stock: row.dataset.stock,
       description: row.dataset.description,
       image: row.dataset.image,
+      hsn: row.dataset.hsn,
+      unit: row.dataset.unit,
+      gstRate: row.dataset.gstRate,
     })
   );
 }
@@ -1582,6 +1632,7 @@ function renderAdminOrders(orders = []) {
       <div class="order-actions">
         <button type="button" data-order-status="${escapeHtml(nextStatus)}" ${isClosed ? "disabled" : ""}>${escapeHtml(orderPrimaryAction(order.status))}</button>
         <button type="button" data-order-status="${escapeHtml(ORDER_CANCELLED_STATUS)}" ${isClosed ? "disabled" : ""}>Cancel</button>
+        <button type="button" data-generate-invoice>Generate invoice</button>
         <a href="tel:${escapeHtml(order.customer?.phone || "")}">Call</a>
       </div>
     `;
@@ -1599,6 +1650,187 @@ async function refreshAdminOrders() {
   } catch (error) {
     adminOrdersTable.innerHTML = `<div><strong>Login required</strong><span>${escapeHtml(error.message)}</span><b>Locked</b></div>`;
   }
+}
+
+function invoiceNumber(order) {
+  const date = new Date(order.createdAt || Date.now());
+  const stamp = date.toISOString().slice(0, 10).replace(/-/g, "");
+  return `DF/${stamp}/${String(order.id || "ORDER").replace(/^DF-?/i, "")}`;
+}
+
+function invoiceLine(item, index) {
+  const qty = Math.max(1, Number(item.qty || 1));
+  const rate = Math.max(0, Number(item.price || 0));
+  const gstRate = Math.max(0, Number(item.gstRate ?? DEFAULT_GST_RATE));
+  const gross = rate * qty;
+  const taxable = gstRate ? gross / (1 + gstRate / 100) : gross;
+  const gstAmount = gross - taxable;
+  return {
+    serial: index + 1,
+    description: item.name || "Dental product",
+    hsn: item.hsn || DEFAULT_HSN,
+    qty,
+    unit: item.unit || DEFAULT_UNIT,
+    unitPrice: taxable / qty,
+    gstRate,
+    gstAmount,
+    amount: gross,
+  };
+}
+
+function invoiceRows(order) {
+  const rows = (Array.isArray(order.items) ? order.items : []).map(invoiceLine);
+  const shippingCharge = Number(order.shipping?.charge || 0);
+  if (shippingCharge > 0) {
+    rows.push({
+      serial: rows.length + 1,
+      description: "Shipping and handling",
+      hsn: "9968",
+      qty: 1,
+      unit: "Service",
+      unitPrice: shippingCharge,
+      gstRate: 0,
+      gstAmount: 0,
+      amount: shippingCharge,
+    });
+  }
+  return rows;
+}
+
+function rupees(value) {
+  return formatMoney(Number(value || 0));
+}
+
+function invoiceHtml(order) {
+  const rows = invoiceRows(order);
+  const taxableTotal = rows.reduce((sum, row) => sum + row.unitPrice * row.qty, 0);
+  const gstTotal = rows.reduce((sum, row) => sum + row.gstAmount, 0);
+  const grandTotal = Number(order.total || rows.reduce((sum, row) => sum + row.amount, 0));
+  const customer = order.customer || {};
+  const customerName = customer.clinic || customer.name || "Customer";
+  const invoiceDate = formatDateTime(order.createdAt || new Date().toISOString());
+  const rowHtml = rows
+    .map(
+      (row) => `
+        <tr>
+          <td contenteditable="true">${escapeHtml(row.serial)}</td>
+          <td contenteditable="true">${escapeHtml(row.description)}</td>
+          <td contenteditable="true">${escapeHtml(row.hsn)}</td>
+          <td contenteditable="true">${escapeHtml(row.qty)}</td>
+          <td contenteditable="true">${escapeHtml(row.unit)}</td>
+          <td contenteditable="true">${escapeHtml(rupees(row.unitPrice))}</td>
+          <td contenteditable="true">${escapeHtml(row.gstRate)}%<br><small>${escapeHtml(rupees(row.gstAmount))}</small></td>
+          <td contenteditable="true">${escapeHtml(rupees(row.amount))}</td>
+        </tr>`
+    )
+    .join("");
+
+  return `<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Invoice ${escapeHtml(invoiceNumber(order))}</title>
+    <style>
+      * { box-sizing: border-box; }
+      body { margin: 0; background: #eef5f5; color: #0d1d26; font-family: Arial, sans-serif; }
+      .toolbar { position: sticky; top: 0; display: flex; gap: 10px; justify-content: flex-end; padding: 14px 24px; background: #0f8b8d; }
+      .toolbar button { min-height: 38px; padding: 0 16px; border: 0; border-radius: 4px; font-weight: 700; cursor: pointer; }
+      .invoice { width: min(960px, calc(100% - 28px)); margin: 24px auto; padding: 32px; background: white; border: 1px solid #d6e2e3; }
+      .top { display: grid; grid-template-columns: 1.4fr 0.8fr; gap: 24px; border-bottom: 3px solid #0f8b8d; padding-bottom: 18px; }
+      h1 { margin: 0 0 8px; font-size: 30px; letter-spacing: 0; }
+      h2 { margin: 0 0 8px; font-size: 16px; }
+      p { margin: 3px 0; line-height: 1.35; }
+      .muted { color: #60727b; }
+      .block-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin: 22px 0; }
+      .box { border: 1px solid #d6e2e3; padding: 14px; min-height: 132px; }
+      table { width: 100%; border-collapse: collapse; margin-top: 16px; }
+      th, td { border: 1px solid #d6e2e3; padding: 10px; text-align: left; vertical-align: top; }
+      th { background: #e7f4f4; font-size: 12px; text-transform: uppercase; }
+      td:nth-child(1), td:nth-child(4), td:nth-child(5), td:nth-child(6), td:nth-child(7), td:nth-child(8) { text-align: right; }
+      td[contenteditable="true"], .editable { outline: 1px dashed transparent; }
+      td[contenteditable="true"]:focus, .editable:focus { outline-color: #0f8b8d; background: #f3fbfb; }
+      .totals { width: min(420px, 100%); margin-left: auto; margin-top: 18px; border: 1px solid #d6e2e3; }
+      .totals div { display: flex; justify-content: space-between; padding: 10px 12px; border-bottom: 1px solid #d6e2e3; }
+      .totals div:last-child { border-bottom: 0; font-size: 18px; font-weight: 800; background: #e7f4f4; }
+      .note { margin-top: 24px; padding: 12px; border: 1px solid #ecd49d; background: #fff7dc; font-size: 13px; }
+      @media print { body { background: white; } .toolbar { display: none; } .invoice { width: 100%; margin: 0; border: 0; } }
+    </style>
+  </head>
+  <body>
+    <div class="toolbar"><button onclick="window.print()">Print / Save PDF</button></div>
+    <main class="invoice">
+      <section class="top">
+        <div>
+          <h1>${escapeHtml(businessInfo.brand)}</h1>
+          <p><strong>${escapeHtml(businessInfo.legalName)}</strong></p>
+          <p>${escapeHtml(businessInfo.address)}</p>
+          <p>Mobile: ${escapeHtml(businessInfo.phone)}</p>
+          <p>Email: ${escapeHtml(businessInfo.email)}</p>
+          <p>GSTIN: ${escapeHtml(businessInfo.gstin)}</p>
+        </div>
+        <div>
+          <h2>Order Invoice</h2>
+          <p><strong>Invoice No:</strong> <span class="editable" contenteditable="true">${escapeHtml(invoiceNumber(order))}</span></p>
+          <p><strong>Invoice Date:</strong> ${escapeHtml(invoiceDate)}</p>
+          <p><strong>Order ID:</strong> ${escapeHtml(order.id || "")}</p>
+          <p><strong>Status:</strong> ${escapeHtml(order.status || "Request received")}</p>
+          <p><strong>Payment:</strong> ${escapeHtml(order.payment?.method || customer.payment || "")}</p>
+        </div>
+      </section>
+
+      <section class="block-grid">
+        <div class="box">
+          <h2>Bill To</h2>
+          <p class="editable" contenteditable="true"><strong>${escapeHtml(customerName)}</strong></p>
+          <p class="editable" contenteditable="true">${escapeHtml(customer.name || "")}</p>
+          <p class="editable" contenteditable="true">${escapeHtml(customer.address || "")}</p>
+          <p>Phone: <span class="editable" contenteditable="true">${escapeHtml(customer.phone || "")}</span></p>
+          <p>GSTIN: <span class="editable" contenteditable="true">${escapeHtml(customer.gstin || "Add if available")}</span></p>
+        </div>
+        <div class="box">
+          <h2>Ship To</h2>
+          <p class="editable" contenteditable="true"><strong>${escapeHtml(customerName)}</strong></p>
+          <p class="editable" contenteditable="true">${escapeHtml(customer.address || "")}</p>
+          <p>Phone: <span class="editable" contenteditable="true">${escapeHtml(customer.phone || "")}</span></p>
+        </div>
+      </section>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Serial No.</th>
+            <th>Description of Goods</th>
+            <th>HSN</th>
+            <th>Qty</th>
+            <th>Unit</th>
+            <th>Unit Price</th>
+            <th>GST</th>
+            <th>Amount</th>
+          </tr>
+        </thead>
+        <tbody>${rowHtml}</tbody>
+      </table>
+
+      <section class="totals">
+        <div><span>Taxable value</span><strong>${escapeHtml(rupees(taxableTotal))}</strong></div>
+        <div><span>GST amount</span><strong>${escapeHtml(rupees(gstTotal))}</strong></div>
+        <div><span>Grand total</span><strong>${escapeHtml(rupees(grandTotal))}</strong></div>
+      </section>
+
+      <p class="note">This is an auto-generated website order invoice/order summary for processing. Final statutory GST tax invoice can be issued from Bharti Dent India records. HSN/GST fields are editable before printing if a product needs correction.</p>
+    </main>
+  </body>
+</html>`;
+}
+
+function openInvoiceWindow(order, popup = window.open("", "_blank", "width=1100,height=820")) {
+  if (!popup) {
+    if (adminActionMessage) adminActionMessage.textContent = "Popup blocked. Allow popups for this site, then click Generate invoice again.";
+    return;
+  }
+  popup.document.open();
+  popup.document.write(invoiceHtml(order));
+  popup.document.close();
 }
 
 function renderTrackingResult(order) {
@@ -1753,6 +1985,9 @@ document.addEventListener("click", async (event) => {
     productAdminForm.elements.price.value = row.dataset.price;
     productAdminForm.elements.mrp.value = row.dataset.mrp;
     productAdminForm.elements.stock.value = row.dataset.stock;
+    productAdminForm.elements.hsn.value = row.dataset.hsn || DEFAULT_HSN;
+    productAdminForm.elements.unit.value = row.dataset.unit || DEFAULT_UNIT;
+    productAdminForm.elements.gstRate.value = row.dataset.gstRate || DEFAULT_GST_RATE;
     productAdminForm.elements.description.value = row.dataset.description;
     productAdminForm.elements.image.value = row.dataset.image;
     if (productImagePreview) productImagePreview.src = row.dataset.image || "assets/hero-dental-shop.png";
@@ -1794,6 +2029,32 @@ document.addEventListener("click", async (event) => {
     } catch (error) {
       orderStatusButton.disabled = false;
       if (adminActionMessage) adminActionMessage.textContent = `Order update failed: ${error.message}`;
+    }
+  }
+
+  const invoiceButton = event.target.closest("[data-generate-invoice]");
+  if (invoiceButton && adminOrdersTable) {
+    const row = invoiceButton.closest("[data-order-id]");
+    const orderId = row?.dataset.orderId || "";
+    const popup = window.open("", "_blank", "width=1100,height=820");
+    if (!popup) {
+      if (adminActionMessage) adminActionMessage.textContent = "Popup blocked. Allow popups for this site, then click Generate invoice again.";
+      return;
+    }
+    popup.document.open();
+    popup.document.write("<!doctype html><title>Generating invoice</title><p style='font-family:Arial;padding:24px'>Generating invoice...</p>");
+    popup.document.close();
+    invoiceButton.disabled = true;
+    if (adminActionMessage) adminActionMessage.textContent = `Generating invoice for ${orderId}...`;
+    try {
+      const order = await fetchBackendOrder(orderId);
+      openInvoiceWindow(order, popup);
+      if (adminActionMessage) adminActionMessage.textContent = `Invoice window opened for ${order.id}.`;
+    } catch (error) {
+      popup.close();
+      if (adminActionMessage) adminActionMessage.textContent = `Invoice failed: ${error.message}`;
+    } finally {
+      invoiceButton.disabled = false;
     }
   }
 
@@ -1964,7 +2225,7 @@ async function submitCheckoutForm(event, messageNode, summaryNode) {
       await startRazorpayPayment(customer, messageNode, summaryNode, form);
     } else {
       const order = await saveBackendOrder(customer);
-      if (messageNode) messageNode.textContent = `Thanks ${customer.name}. Order ${order.id} saved for callback.`;
+      showCheckoutSuccess(messageNode, customer, order);
       cart.clear();
       renderCart();
       if (summaryNode) renderSummary(summaryNode);
@@ -2028,6 +2289,20 @@ trackOrderForm?.addEventListener("submit", async (event) => {
     submitButton.disabled = false;
   }
 });
+
+function autoTrackInitialOrder() {
+  if (!trackOrderForm) return;
+  let order = searchParams().get("order") || "";
+  if (!order) {
+    try {
+      const saved = JSON.parse(localStorage.getItem(LAST_ORDER_KEY) || "null");
+      order = saved?.id || "";
+    } catch {}
+  }
+  if (!order) return;
+  trackOrderForm.elements.order.value = order;
+  trackOrderForm.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+}
 
 adminSearch?.addEventListener("input", () => {
   const term = adminSearch.value.trim().toLowerCase();
@@ -2114,6 +2389,9 @@ productAdminForm?.addEventListener("submit", async (event) => {
     price: Number(formData.get("price")),
     mrp: Number(formData.get("mrp")),
     stock: Number(formData.get("stock")),
+    hsn: String(formData.get("hsn") || DEFAULT_HSN).trim(),
+    unit: String(formData.get("unit") || DEFAULT_UNIT).trim(),
+    gstRate: Number(formData.get("gstRate") || DEFAULT_GST_RATE),
     description: formData.get("description").trim(),
     image: formData.get("image").trim() || "assets/hero-dental-shop.png",
   };
@@ -2157,3 +2435,4 @@ if (initialSearch && searchInput) searchInput.value = initialSearch;
 applyFilter("all");
 syncProductsFromBackend().then(() => renderAdminMetrics(latestAdminOrders));
 initAdminAuth();
+autoTrackInitialOrder();

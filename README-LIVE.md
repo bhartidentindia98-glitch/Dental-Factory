@@ -45,7 +45,8 @@ Orders and admin-created products are stored in JSON files. On Render, use a per
 3. Copy the order ID from the checkout success message.
 4. Open `track-order.html` and search by order ID or mobile number.
 5. Open `admin.html` and confirm the order appears in Orders.
-6. For Razorpay, choose "Pay online now", complete a test payment, and confirm the order status becomes `Paid - callback pending`.
+6. Click `Generate invoice` on the admin order row and use `Print / Save PDF` for the website order invoice.
+7. For Razorpay, choose "Pay online now", complete a test payment, and confirm the order status becomes `Paid - callback pending`.
 
 ## Important
 
