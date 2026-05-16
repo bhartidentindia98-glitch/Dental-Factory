@@ -58,6 +58,7 @@ const adminLoginForm = $("#adminLoginForm");
 const adminAuthMessage = $("#adminAuthMessage");
 const adminLogoutButton = $("#adminLogoutButton");
 const adminOrdersTable = $("#adminOrdersTable");
+const adminStorageNotice = $("#adminStorageNotice");
 const refreshOrdersButton = $("#refreshOrdersButton");
 const addStockButton = $("#addStockButton");
 const assignCallbackButton = $("#assignCallbackButton");
@@ -74,6 +75,8 @@ let activeFilter = "all";
 let activeBrand = "";
 let activeSlide = 0;
 let latestAdminOrders = [];
+let adminSessionMinutes = 30;
+let adminAutoLogoutTimer = null;
 const ADMIN_PRODUCTS_KEY = "dentalFactoryAdminProducts";
 const PRODUCTS_API = "/api/products";
 const ORDERS_API = "/api/orders";
@@ -94,6 +97,8 @@ const FREE_SHIPPING_THRESHOLD = 2999;
 const STANDARD_SHIPPING_FEE = 99;
 const CASH_COD_LIMIT = 20000;
 const FREIGHT_CONFIRMATION_LIMIT = 25000;
+const ORDER_STATUS_FLOW = ["Request received", "Callback done", "Packed", "Shipped", "Delivered"];
+const ORDER_CANCELLED_STATUS = "Cancelled";
 let paymentConfig = { razorpayEnabled: false, keyId: "", currency: "INR", businessName: "Dental Factory" };
 
 const productDetails = {
@@ -592,13 +597,22 @@ async function fetchBackendOrders() {
   return apiJson(ORDERS_API);
 }
 
+async function updateBackendOrderStatus(orderId, status) {
+  return apiJson(`${ORDERS_API}/${encodeURIComponent(orderId)}/status`, {
+    method: "POST",
+    body: JSON.stringify({ status }),
+  });
+}
+
 async function trackBackendOrder(query) {
   return apiJson(`${ORDER_TRACK_API}?query=${encodeURIComponent(query)}`);
 }
 
 async function getAdminSession() {
   try {
-    return await apiJson(ADMIN_SESSION_API);
+    const session = await apiJson(ADMIN_SESSION_API);
+    adminSessionMinutes = Number(session.sessionMinutes || adminSessionMinutes) || adminSessionMinutes;
+    return session;
   } catch {
     return { authenticated: false };
   }
@@ -1501,6 +1515,26 @@ function orderItemSummary(order) {
   return items.map((item) => `${item.name} x ${item.qty}`).join(", ");
 }
 
+function normalOrderStatus(status) {
+  const value = String(status || "Request received").trim().toLowerCase();
+  return ORDER_STATUS_FLOW.find((item) => item.toLowerCase() === value) || (value.includes("cancel") ? ORDER_CANCELLED_STATUS : "Request received");
+}
+
+function nextOrderStatus(status) {
+  const current = normalOrderStatus(status);
+  const index = ORDER_STATUS_FLOW.indexOf(current);
+  return ORDER_STATUS_FLOW[Math.min(index + 1, ORDER_STATUS_FLOW.length - 1)] || ORDER_STATUS_FLOW[1];
+}
+
+function orderPrimaryAction(status) {
+  const next = nextOrderStatus(status);
+  if (next === "Callback done") return "Mark callback";
+  if (next === "Packed") return "Mark packed";
+  if (next === "Shipped") return "Mark shipped";
+  if (next === "Delivered") return "Mark delivered";
+  return "Delivered";
+}
+
 function setAdminMetric(name, value) {
   $$(`[data-admin-metric="${name}"]`).forEach((node) => {
     node.textContent = value;
@@ -1536,11 +1570,20 @@ function renderAdminOrders(orders = []) {
 
   orders.forEach((order) => {
     const row = document.createElement("div");
+    row.dataset.orderId = order.id || "";
+    row.dataset.status = order.status || "Request received";
+    const isClosed = /delivered|cancelled/i.test(order.status || "");
+    const nextStatus = nextOrderStatus(order.status);
     const paymentLabel = order.payment?.status ? `${order.payment.status} via ${order.payment.method || order.customer?.payment || "payment"}` : order.customer?.payment || "Payment pending";
     row.innerHTML = `
       <strong>${escapeHtml(order.id)}</strong>
-      <span>${escapeHtml(order.customer?.name || "Customer")} - ${escapeHtml(orderItemSummary(order))}<small>${escapeHtml(order.customer?.phone || "")} | ${escapeHtml(formatDateTime(order.createdAt))} | ${escapeHtml(paymentLabel)}</small></span>
+      <span>${escapeHtml(order.customer?.name || "Customer")} - ${escapeHtml(orderItemSummary(order))}<small>${escapeHtml(order.customer?.phone || "")} | ${escapeHtml(formatDateTime(order.createdAt))} | ${escapeHtml(paymentLabel)} | ${escapeHtml(formatMoney(order.total || 0))}</small><small>${escapeHtml(order.customer?.address || "Address not saved")}</small></span>
       <b>${escapeHtml(order.status || "Request received")}</b>
+      <div class="order-actions">
+        <button type="button" data-order-status="${escapeHtml(nextStatus)}" ${isClosed ? "disabled" : ""}>${escapeHtml(orderPrimaryAction(order.status))}</button>
+        <button type="button" data-order-status="${escapeHtml(ORDER_CANCELLED_STATUS)}" ${isClosed ? "disabled" : ""}>Cancel</button>
+        <a href="tel:${escapeHtml(order.customer?.phone || "")}">Call</a>
+      </div>
     `;
     adminOrdersTable.appendChild(row);
   });
@@ -1561,8 +1604,8 @@ async function refreshAdminOrders() {
 function renderTrackingResult(order) {
   if (!trackingResult) return;
   const status = order.status || "Request received";
-  const steps = ["Request received", "Procurement callback", "Packing in warehouse", "Out for delivery"];
-  const activeIndex = Math.max(0, steps.findIndex((step) => step.toLowerCase() === status.toLowerCase()));
+  const steps = ORDER_STATUS_FLOW;
+  const activeIndex = Math.max(0, steps.findIndex((step) => step.toLowerCase() === normalOrderStatus(status).toLowerCase()));
   trackingResult.innerHTML = `
     <div class="tracking-head">
       <span class="badge">${escapeHtml(status)}</span>
@@ -1589,11 +1632,40 @@ function setAdminUnlocked(isUnlocked) {
   if (adminLogoutButton) adminLogoutButton.hidden = !isUnlocked;
   if (adminSearchShell) adminSearchShell.hidden = !isUnlocked;
   if (adminNav) adminNav.hidden = !isUnlocked;
+  if (isUnlocked) scheduleAdminAutoLogout();
+  else clearAdminAutoLogout();
+}
+
+function renderAdminStorageNotice(session = {}) {
+  if (!adminStorageNotice) return;
+  const warning = session.storage?.message || "";
+  adminStorageNotice.hidden = !warning;
+  adminStorageNotice.textContent = warning;
+}
+
+function clearAdminAutoLogout() {
+  if (adminAutoLogoutTimer) window.clearTimeout(adminAutoLogoutTimer);
+  adminAutoLogoutTimer = null;
+}
+
+function scheduleAdminAutoLogout() {
+  clearAdminAutoLogout();
+  if (!adminDashboard || adminDashboard.hidden) return;
+  adminAutoLogoutTimer = window.setTimeout(async () => {
+    try {
+      await logoutAdmin();
+    } catch {}
+    setAdminUnlocked(false);
+    if (adminAuthMessage) {
+      adminAuthMessage.textContent = `Logged out automatically after ${adminSessionMinutes} minutes for security.`;
+    }
+  }, Math.max(5, adminSessionMinutes) * 60 * 1000);
 }
 
 async function initAdminAuth() {
   if (!adminAuth && !adminDashboard) return;
   const session = await getAdminSession();
+  renderAdminStorageNotice(session);
   setAdminUnlocked(Boolean(session.authenticated));
   if (session.authenticated) {
     await refreshAdminOrders();
@@ -1704,6 +1776,24 @@ document.addEventListener("click", async (event) => {
     } catch (error) {
       deleteProductButton.disabled = false;
       if (productAdminMessage) productAdminMessage.textContent = `Delete failed: ${error.message}. Start the backend server and try again.`;
+    }
+  }
+
+  const orderStatusButton = event.target.closest("[data-order-status]");
+  if (orderStatusButton && adminOrdersTable) {
+    const row = orderStatusButton.closest("[data-order-id]");
+    const orderId = row?.dataset.orderId || "";
+    const status = orderStatusButton.dataset.orderStatus || "";
+    orderStatusButton.disabled = true;
+    if (adminActionMessage) adminActionMessage.textContent = `Updating ${orderId} to ${status}...`;
+    try {
+      const updatedOrder = await updateBackendOrderStatus(orderId, status);
+      latestAdminOrders = latestAdminOrders.map((order) => (order.id === updatedOrder.id ? updatedOrder : order));
+      renderAdminOrders(latestAdminOrders);
+      if (adminActionMessage) adminActionMessage.textContent = `${updatedOrder.id} is now ${updatedOrder.status}.`;
+    } catch (error) {
+      orderStatusButton.disabled = false;
+      if (adminActionMessage) adminActionMessage.textContent = `Order update failed: ${error.message}`;
     }
   }
 
@@ -1956,6 +2046,8 @@ adminLoginForm?.addEventListener("submit", async (event) => {
   if (adminAuthMessage) adminAuthMessage.textContent = "Checking admin password...";
   try {
     await loginAdmin(password);
+    const session = await getAdminSession();
+    renderAdminStorageNotice(session);
     form.reset();
     setAdminUnlocked(true);
     if (adminAuthMessage) adminAuthMessage.textContent = "";
@@ -1975,6 +2067,12 @@ adminLogoutButton?.addEventListener("click", async () => {
 });
 
 refreshOrdersButton?.addEventListener("click", refreshAdminOrders);
+
+["click", "keydown", "touchstart"].forEach((eventName) => {
+  document.addEventListener(eventName, () => {
+    if (adminDashboard && !adminDashboard.hidden) scheduleAdminAutoLogout();
+  });
+});
 
 addStockButton?.addEventListener("click", () => {
   $("#products-admin")?.scrollIntoView({ behavior: "smooth", block: "start" });

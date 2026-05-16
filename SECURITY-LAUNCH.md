@@ -4,6 +4,8 @@
 
 - Set `ADMIN_PASSWORD` to a private password that is not shared in chat, screenshots, or GitHub.
 - Keep `SESSION_SECRET` present and random. Render can generate it from `render.yaml`.
+- Keep `ADMIN_SESSION_MINUTES=30` unless you intentionally want a shorter or longer admin session.
+- For real orders, attach a Render persistent disk mounted at `/var/data` and set `DATA_DIR=/var/data`.
 - Add Razorpay keys only in Render Environment, never in code or GitHub.
 - Keep `NODE_ENV=production` on Render.
 
@@ -11,6 +13,7 @@
 
 - Use the admin panel only on trusted devices.
 - Log out after product or order updates.
+- Admin sessions automatically expire after the configured session window.
 - Change `ADMIN_PASSWORD` immediately if it was shared with anyone.
 - Do not upload very large product images. Compress images before adding products.
 
@@ -30,4 +33,4 @@
 
 ## Next scale step
 
-The current launch build stores products and orders in JSON files. It is good for a quick MVP. For heavier real traffic, move orders/products to Postgres on Render and enable automated database backups.
+The current launch build stores products and orders in JSON files. It is good for a quick MVP only when `DATA_DIR` points to a persistent Render disk. For heavier real traffic, move orders/products to Postgres on Render and enable automated database backups.

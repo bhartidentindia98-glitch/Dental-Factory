@@ -1577,7 +1577,7 @@ main {
 }
 
 .admin-table > div {
-  grid-template-columns: 90px 1fr auto;
+  grid-template-columns: 110px minmax(0, 1fr) auto auto;
 }
 
 .admin-table span,
@@ -1599,6 +1599,39 @@ main {
   color: var(--sea-dark);
   background: rgba(15, 139, 141, 0.1);
   text-align: center;
+}
+
+.order-actions {
+  display: grid;
+  gap: 6px;
+  min-width: 128px;
+}
+
+.order-actions button,
+.order-actions a {
+  min-height: 32px;
+  padding: 7px 9px;
+  border: 1px solid rgba(15, 139, 141, 0.24);
+  border-radius: var(--radius);
+  color: var(--sea-dark);
+  background: rgba(15, 139, 141, 0.08);
+  font-weight: 800;
+  text-align: center;
+  text-decoration: none;
+}
+
+.order-actions button:disabled {
+  opacity: 0.55;
+}
+
+.admin-storage-notice {
+  margin-top: -8px;
+  padding: 12px 14px;
+  border: 1px solid rgba(233, 101, 82, 0.28);
+  border-radius: var(--radius);
+  color: #72331f;
+  background: #fff3ea;
+  font-weight: 800;
 }
 
 .stock-list > div {

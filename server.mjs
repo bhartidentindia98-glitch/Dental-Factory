@@ -20,17 +20,20 @@ const freeShippingThreshold = 2999;
 const standardShippingFee = 99;
 const cashCodLimit = 20000;
 const freightConfirmationLimit = 25000;
-const dataDir = path.resolve(process.env.DATA_DIR || path.join(rootDir, "data"));
+const defaultDataDir = path.join(rootDir, "data");
+const dataDir = path.resolve(process.env.DATA_DIR || defaultDataDir);
+const adminSessionMinutes = Math.min(720, Math.max(5, Number(process.env.ADMIN_SESSION_MINUTES || 30) || 30));
 const productsFile = path.join(dataDir, "products.json");
 const ordersFile = path.join(dataDir, "orders.json");
 const accountsFile = path.join(dataDir, "accounts.json");
 const paymentAttemptsFile = path.join(dataDir, "payment-attempts.json");
 const adminCookieName = "df_admin_session";
-const adminSessionMaxAgeSeconds = 12 * 60 * 60;
+const adminSessionMaxAgeSeconds = adminSessionMinutes * 60;
 const maxPublicJsonBodyBytes = 256 * 1024;
 const maxAdminJsonBodyBytes = 6 * 1024 * 1024;
 const rateLimitStore = new Map();
 const fileWriteQueues = new Map();
+const orderStatuses = ["Request received", "Callback done", "Packed", "Shipped", "Delivered", "Cancelled"];
 
 const mimeTypes = new Map([
   [".html", "text/html; charset=utf-8"],
@@ -236,6 +239,23 @@ function createPublicId(prefix) {
   return `${prefix}-${crypto.randomBytes(4).toString("hex").toUpperCase()}`;
 }
 
+function normalizeOrderStatus(status) {
+  const value = String(status || "").trim().toLowerCase();
+  return orderStatuses.find((item) => item.toLowerCase() === value) || "";
+}
+
+function storageNotice() {
+  const defaultStorage = path.resolve(dataDir) === path.resolve(defaultDataDir);
+  const renderDefaultStorage = isProduction && process.env.RENDER === "true" && defaultStorage;
+  return {
+    dataDirConfigured: Boolean(process.env.DATA_DIR),
+    persistentRecommended: renderDefaultStorage,
+    message: renderDefaultStorage
+      ? "Orders are saved in Render's temporary filesystem. Attach a persistent disk or database before taking real orders."
+      : "",
+  };
+}
+
 function normalizeProduct(product) {
   const name = String(product.name || "").trim();
   return {
@@ -320,6 +340,7 @@ function safeOrder(order) {
     status: String(order.status || "Request received"),
     payment: normalizePayment(order.payment || { method: order.customer?.payment || "Cash on delivery", status: "Pending" }),
     createdAt: order.createdAt,
+    statusUpdatedAt: order.statusUpdatedAt || order.createdAt,
   };
 }
 
@@ -763,7 +784,12 @@ async function handleApi(req, res, reqUrl) {
   }
 
   if (reqUrl.pathname === "/api/admin/session" && req.method === "GET") {
-    sendJson(res, 200, { authenticated: Boolean(adminPassword) && isAdmin(req), adminConfigured: Boolean(adminPassword) });
+    sendJson(res, 200, {
+      authenticated: Boolean(adminPassword) && isAdmin(req),
+      adminConfigured: Boolean(adminPassword),
+      sessionMinutes: adminSessionMinutes,
+      storage: storageNotice(),
+    });
     return;
   }
 
@@ -834,6 +860,34 @@ async function handleApi(req, res, reqUrl) {
     if (!requireAdmin(req, res)) return;
     const orders = await readJson(ordersFile, []);
     sendJson(res, 200, orders.map(safeOrder));
+    return;
+  }
+
+  const orderStatusMatch = reqUrl.pathname.match(/^\/api\/orders\/([^/]+)\/status$/);
+  if (orderStatusMatch && req.method === "POST") {
+    if (!requireAdmin(req, res)) return;
+    const orderId = decodeURIComponent(orderStatusMatch[1]);
+    const body = await readRequestJson(req, 16 * 1024);
+    const nextStatus = normalizeOrderStatus(body.status);
+    if (!nextStatus) {
+      sendJson(res, 400, { error: "Choose a valid order status" });
+      return;
+    }
+
+    const orders = await readJson(ordersFile, []);
+    const index = orders.findIndex((order) => String(order.id || "").toLowerCase() === orderId.toLowerCase());
+    if (index < 0) {
+      sendJson(res, 404, { error: "Order not found" });
+      return;
+    }
+
+    orders[index] = {
+      ...orders[index],
+      status: nextStatus,
+      statusUpdatedAt: new Date().toISOString(),
+    };
+    await writeJson(ordersFile, orders);
+    sendJson(res, 200, safeOrder(orders[index]));
     return;
   }
 
