@@ -14,6 +14,8 @@ const cartLines = $("#cartLines");
 const cartCount = $("#cartCount");
 const cartTotal = $("#cartTotal");
 const deliveryNote = $("#deliveryNote");
+const deliveryForm = $("#deliveryForm");
+const pincodeInput = $("#pincode");
 const checkoutButton = $("#checkoutButton");
 const checkoutModal = $("#checkoutModal");
 const closeCheckout = $("#closeCheckout");
@@ -84,6 +86,7 @@ const ADMIN_SESSION_API = "/api/admin/session";
 const ADMIN_LOGIN_API = "/api/admin/login";
 const ADMIN_LOGOUT_API = "/api/admin/logout";
 const CUSTOMER_ACCOUNT_KEY = "dentalFactoryCustomerAccount";
+const DELIVERY_PIN_KEY = "dentalFactoryDeliveryPin";
 const ONLINE_PAYMENT_METHOD = "Online payment (Razorpay)";
 let paymentConfig = { razorpayEnabled: false, keyId: "", currency: "INR", businessName: "Dental Factory" };
 
@@ -620,6 +623,176 @@ function searchProducts(term) {
 function showCatalogResults() {
   const target = $(".catalog-results") || productGrid || $("#products");
   target?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function validPincode(pin) {
+  return /^[0-9]{6}$/.test(String(pin || "").trim());
+}
+
+function getSavedDeliveryPin() {
+  try {
+    return localStorage.getItem(DELIVERY_PIN_KEY) || "";
+  } catch {
+    return "";
+  }
+}
+
+function updateDeliveryUi(pin = getSavedDeliveryPin()) {
+  const cleanPin = String(pin || "").trim();
+  if (pincodeInput) pincodeInput.value = cleanPin;
+  if (deliveryForm) {
+    deliveryForm.classList.toggle("has-delivery-pin", Boolean(cleanPin));
+    const label = deliveryForm.querySelector("label");
+    if (label) {
+      label.innerHTML = cleanPin ? `Delivering to <span>${escapeHtml(cleanPin)}</span>` : "Delivering to";
+    }
+  }
+  if (deliveryNote) {
+    deliveryNote.textContent = cleanPin
+      ? `Delivery to ${cleanPin}: most items arrive in 2-4 business days.`
+      : "Enter pincode to check delivery estimate.";
+  }
+}
+
+function setDeliveryLocationMessage(message, isError = false) {
+  const messageNode = $("#deliveryLocationMessage");
+  if (!messageNode) return;
+  messageNode.textContent = message;
+  messageNode.classList.toggle("is-error", isError);
+}
+
+function saveDeliveryPin(pin, { closeModal = true } = {}) {
+  const cleanPin = String(pin || "").trim();
+  if (!validPincode(cleanPin)) {
+    setDeliveryLocationMessage("Enter a valid 6 digit pincode.", true);
+    return false;
+  }
+  try {
+    localStorage.setItem(DELIVERY_PIN_KEY, cleanPin);
+  } catch {}
+  updateDeliveryUi(cleanPin);
+  setDeliveryLocationMessage(`Delivery location saved for ${cleanPin}.`);
+  showToast(`Delivering to ${cleanPin}.`);
+  if (closeModal) {
+    window.setTimeout(closeDeliveryLocation, 350);
+  }
+  return true;
+}
+
+function ensureDeliveryLocationModal() {
+  let modal = $("#deliveryLocationModal");
+  if (modal) return modal;
+  modal = document.createElement("aside");
+  modal.className = "delivery-location-modal";
+  modal.id = "deliveryLocationModal";
+  modal.setAttribute("aria-label", "Select delivery location");
+  modal.setAttribute("aria-hidden", "true");
+  modal.innerHTML = `
+    <form class="delivery-location-panel" id="deliveryLocationForm">
+      <div class="cart-head">
+        <h2>Select Delivery Location</h2>
+        <button class="icon-only" type="button" aria-label="Close delivery location" data-close-delivery-location>
+          <i data-lucide="x"></i>
+        </button>
+      </div>
+      <button class="current-location-button" id="useCurrentLocation" type="button">
+        <span><i data-lucide="navigation"></i></span>
+        <strong>Use my Current Location</strong>
+        <small>Allow location permission for automatic pincode detection</small>
+        <em class="location-switch" aria-hidden="true"></em>
+      </button>
+      <div class="location-divider"><span></span><b>or</b><span></span></div>
+      <label class="delivery-pin-entry">
+        <i data-lucide="map-pin"></i>
+        <input id="deliveryPinInput" inputmode="numeric" maxlength="6" placeholder="Enter pincode" />
+        <button type="submit">Submit</button>
+      </label>
+      <p class="delivery-location-message" id="deliveryLocationMessage" role="status"></p>
+    </form>
+  `;
+  document.body.appendChild(modal);
+
+  modal.addEventListener("click", (event) => {
+    if (event.target === modal || event.target.closest("[data-close-delivery-location]")) {
+      closeDeliveryLocation();
+    }
+  });
+
+  $("#deliveryLocationForm")?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    saveDeliveryPin($("#deliveryPinInput")?.value);
+  });
+
+  $("#useCurrentLocation")?.addEventListener("click", detectCurrentLocation);
+  setIcons();
+  return modal;
+}
+
+function openDeliveryLocation(message = "") {
+  const modal = ensureDeliveryLocationModal();
+  const savedPin = pincodeInput?.value.trim() || getSavedDeliveryPin();
+  const modalInput = $("#deliveryPinInput");
+  if (modalInput) modalInput.value = savedPin;
+  setDeliveryLocationMessage(message || (savedPin ? `Current pincode is ${savedPin}.` : "Choose current location or enter pincode."));
+  modal.classList.add("is-open");
+  modal.setAttribute("aria-hidden", "false");
+  window.setTimeout(() => modalInput?.focus(), 60);
+}
+
+function closeDeliveryLocation() {
+  const modal = $("#deliveryLocationModal");
+  if (!modal) return;
+  modal.classList.remove("is-open");
+  modal.setAttribute("aria-hidden", "true");
+}
+
+async function reverseGeocodePincode(latitude, longitude) {
+  const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${encodeURIComponent(latitude)}&lon=${encodeURIComponent(longitude)}&zoom=18&addressdetails=1`;
+  const response = await fetch(url);
+  if (!response.ok) return "";
+  const data = await response.json();
+  const rawPostcode = String(data?.address?.postcode || "");
+  const match = rawPostcode.match(/[0-9]{6}/);
+  return match ? match[0] : "";
+}
+
+function detectCurrentLocation() {
+  const button = $("#useCurrentLocation");
+  if (!navigator.geolocation) {
+    setDeliveryLocationMessage("Current location is not available in this browser. Enter pincode manually.", true);
+    return;
+  }
+
+  if (button) button.disabled = true;
+  setDeliveryLocationMessage("Detecting your current location...");
+
+  navigator.geolocation.getCurrentPosition(
+    async (position) => {
+      try {
+        const pin = await reverseGeocodePincode(position.coords.latitude, position.coords.longitude);
+        if (pin) {
+          const modalInput = $("#deliveryPinInput");
+          if (modalInput) modalInput.value = pin;
+          saveDeliveryPin(pin);
+        } else {
+          setDeliveryLocationMessage("Location detected, but pincode was not found. Enter pincode manually.", true);
+        }
+      } catch {
+        setDeliveryLocationMessage("Location detected, but pincode lookup failed. Enter pincode manually.", true);
+      } finally {
+        if (button) button.disabled = false;
+      }
+    },
+    (error) => {
+      const blocked = error.code === error.PERMISSION_DENIED;
+      setDeliveryLocationMessage(
+        blocked ? "Location permission was blocked. Enter pincode manually." : "Could not detect current location. Enter pincode manually.",
+        true
+      );
+      if (button) button.disabled = false;
+    },
+    { enableHighAccuracy: true, timeout: 12000, maximumAge: 300000 }
+  );
 }
 
 function loadCart() {
@@ -1465,6 +1638,7 @@ document.addEventListener("keydown", (event) => {
   hideCheckout();
   hideProductDetails();
   hideAccount();
+  closeDeliveryLocation();
 });
 
 if (detailBuyNow) {
@@ -1482,16 +1656,25 @@ if ($$(".promo-slide").length > 1) {
   setInterval(() => showSlide(activeSlide + 1), 7000);
 }
 
-$("#deliveryForm")?.addEventListener("submit", (event) => {
+deliveryForm?.addEventListener("click", (event) => {
+  if (event.target.closest("button[type='submit']")) return;
   event.preventDefault();
-  const pin = $("#pincode")?.value.trim() || "";
-  if (!/^[0-9]{6}$/.test(pin)) {
+  openDeliveryLocation();
+});
+
+pincodeInput?.addEventListener("focus", () => {
+  openDeliveryLocation();
+});
+
+deliveryForm?.addEventListener("submit", (event) => {
+  event.preventDefault();
+  const pin = pincodeInput?.value.trim() || "";
+  if (!validPincode(pin)) {
     if (deliveryNote) deliveryNote.textContent = "Enter a valid 6 digit pincode.";
-    openCart();
+    openDeliveryLocation("Enter a valid 6 digit pincode.");
     return;
   }
-  if (deliveryNote) deliveryNote.textContent = `Delivery to ${pin}: most items arrive in 2-4 business days.`;
-  showToast(`Delivery estimate saved for ${pin}.`);
+  saveDeliveryPin(pin, { closeModal: false });
 });
 
 $("#suggestForm")?.addEventListener("submit", (event) => {
@@ -1709,6 +1892,7 @@ hydrateAdminProducts();
 renderAdminProductsOnStorefront();
 injectDetailButtons();
 setIcons();
+updateDeliveryUi();
 renderCart();
 updateAccountButtons();
 loadPaymentConfig();

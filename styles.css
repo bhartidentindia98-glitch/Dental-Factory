@@ -122,6 +122,10 @@ svg {
   font-weight: 700;
 }
 
+.delivery-box label span {
+  color: var(--coral);
+}
+
 .pin-control,
 .search-shell {
   display: flex;
@@ -1731,7 +1735,8 @@ main {
 .cart-drawer,
 .checkout-modal,
 .product-modal,
-.account-modal {
+.account-modal,
+.delivery-location-modal {
   position: fixed;
   inset: 0;
   z-index: 40;
@@ -1746,7 +1751,8 @@ main {
 .cart-drawer.is-open,
 .checkout-modal.is-open,
 .product-modal.is-open,
-.account-modal.is-open {
+.account-modal.is-open,
+.delivery-location-modal.is-open {
   opacity: 1;
   pointer-events: auto;
 }
@@ -1754,7 +1760,8 @@ main {
 .cart-panel,
 .checkout-panel,
 .product-panel,
-.account-panel {
+.account-panel,
+.delivery-location-panel {
   display: grid;
   grid-template-rows: auto auto 1fr auto auto;
   gap: 14px;
@@ -1767,20 +1774,155 @@ main {
 
 .checkout-modal,
 .product-modal,
-.account-modal {
+.account-modal,
+.delivery-location-modal {
   align-items: center;
   justify-content: center;
   padding: 16px;
 }
 
 .checkout-panel,
-.account-panel {
+.account-panel,
+.delivery-location-panel {
   grid-template-rows: auto;
   width: min(560px, 100%);
   height: auto;
   max-height: min(760px, calc(100vh - 32px));
   overflow: auto;
   border-radius: var(--radius);
+}
+
+.delivery-location-panel {
+  gap: 12px;
+}
+
+.current-location-button {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) 54px;
+  gap: 2px 10px;
+  align-items: center;
+  min-height: 64px;
+  padding: 12px;
+  border: 1px solid #f5debd;
+  border-radius: var(--radius);
+  color: var(--ink);
+  background: #fff8ef;
+  text-align: left;
+}
+
+.current-location-button span {
+  grid-row: 1 / 3;
+  display: grid;
+  place-items: center;
+  color: var(--coral);
+}
+
+.current-location-button svg {
+  width: 20px;
+  height: 20px;
+}
+
+.current-location-button strong {
+  line-height: 1.15;
+}
+
+.current-location-button small {
+  color: var(--muted);
+}
+
+.location-switch {
+  grid-column: 3;
+  grid-row: 1 / 3;
+  justify-self: end;
+  position: relative;
+  width: 54px;
+  height: 30px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #e8eef0;
+}
+
+.location-switch::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 2px 7px rgba(18, 35, 44, 0.24);
+}
+
+.current-location-button:disabled .location-switch {
+  border-color: var(--sea);
+  background: rgba(15, 139, 141, 0.2);
+}
+
+.current-location-button:disabled .location-switch::after {
+  transform: translateX(23px);
+}
+
+.current-location-button:disabled {
+  cursor: wait;
+  opacity: 0.72;
+}
+
+.location-divider {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 10px;
+  align-items: center;
+  color: var(--muted);
+}
+
+.location-divider span {
+  height: 1px;
+  background: var(--line);
+}
+
+.delivery-pin-entry {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.delivery-pin-entry svg {
+  width: 19px;
+  height: 19px;
+  color: var(--sea);
+}
+
+.delivery-pin-entry input {
+  min-height: 38px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  outline: 0;
+}
+
+.delivery-pin-entry button {
+  min-height: 44px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: var(--radius);
+  color: #fff;
+  background: var(--sea-dark);
+  font-weight: 800;
+}
+
+.delivery-location-message {
+  min-height: 20px;
+  margin: 0;
+  color: var(--sea-dark);
+  font-weight: 700;
+}
+
+.delivery-location-message.is-error {
+  color: #a33123;
 }
 
 .product-panel {
@@ -2504,7 +2646,8 @@ main {
 
   .checkout-modal,
   .product-modal,
-  .account-modal {
+  .account-modal,
+  .delivery-location-modal {
     align-items: stretch;
     padding: 8px;
   }
@@ -2512,9 +2655,19 @@ main {
   .cart-panel,
   .checkout-panel,
   .product-panel,
-  .account-panel {
+  .account-panel,
+  .delivery-location-panel {
     width: 100%;
     max-height: calc(100dvh - 16px);
+  }
+
+  .delivery-pin-entry {
+    grid-template-columns: 24px minmax(0, 1fr);
+  }
+
+  .delivery-pin-entry button {
+    grid-column: 1 / -1;
+    width: 100%;
   }
 
   .cart-panel {
