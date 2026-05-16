@@ -945,6 +945,10 @@ main {
   gap: 14px;
 }
 
+.business-details {
+  margin-top: 14px;
+}
+
 .catalog-layout {
   display: grid;
   grid-template-columns: 260px minmax(0, 1fr);
