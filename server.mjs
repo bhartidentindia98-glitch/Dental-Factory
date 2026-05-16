@@ -10,7 +10,8 @@ const host = process.env.HOST || "0.0.0.0";
 const isProduction = process.env.NODE_ENV === "production";
 const localAdminPassword = "DentalFactory@2026";
 const adminPassword = process.env.ADMIN_PASSWORD || (isProduction ? "" : localAdminPassword);
-const sessionSecret = process.env.SESSION_SECRET || "dental-factory-local-session";
+const localSessionSecret = "dental-factory-local-session";
+const sessionSecret = process.env.SESSION_SECRET || (isProduction ? crypto.randomBytes(32).toString("hex") : localSessionSecret);
 const razorpayKeyId = process.env.RAZORPAY_KEY_ID || "";
 const razorpayKeySecret = process.env.RAZORPAY_KEY_SECRET || "";
 const paymentCurrency = String(process.env.PAYMENT_CURRENCY || "INR").toUpperCase();
@@ -25,18 +26,44 @@ const ordersFile = path.join(dataDir, "orders.json");
 const accountsFile = path.join(dataDir, "accounts.json");
 const paymentAttemptsFile = path.join(dataDir, "payment-attempts.json");
 const adminCookieName = "df_admin_session";
+const adminSessionMaxAgeSeconds = 12 * 60 * 60;
+const maxPublicJsonBodyBytes = 256 * 1024;
+const maxAdminJsonBodyBytes = 6 * 1024 * 1024;
+const rateLimitStore = new Map();
+const fileWriteQueues = new Map();
 
 const mimeTypes = new Map([
   [".html", "text/html; charset=utf-8"],
   [".css", "text/css; charset=utf-8"],
   [".js", "text/javascript; charset=utf-8"],
-  [".json", "application/json; charset=utf-8"],
   [".txt", "text/plain; charset=utf-8"],
   [".xml", "application/xml; charset=utf-8"],
   [".png", "image/png"],
   [".svg", "image/svg+xml"],
   [".ico", "image/x-icon"],
 ]);
+
+const publicStaticExtensions = new Set(mimeTypes.keys());
+const blockedStaticDirectories = new Set([".git", "data", "node_modules", "scripts"]);
+const securityHeaders = {
+  "X-Content-Type-Options": "nosniff",
+  "X-Frame-Options": "DENY",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "Permissions-Policy": "camera=(), microphone=(), geolocation=(self), payment=(self)",
+  "Cross-Origin-Opener-Policy": "same-origin",
+  "Content-Security-Policy": [
+    "default-src 'self'",
+    "base-uri 'self'",
+    "object-src 'none'",
+    "frame-ancestors 'none'",
+    "img-src 'self' data: https:",
+    "style-src 'self' 'unsafe-inline'",
+    "script-src 'self' 'unsafe-inline' https://unpkg.com https://checkout.razorpay.com",
+    "connect-src 'self' https://nominatim.openstreetmap.org https://api.razorpay.com",
+    "frame-src https://api.razorpay.com https://checkout.razorpay.com",
+    "form-action 'self'",
+  ].join("; "),
+};
 
 const defaultProducts = [
   {
@@ -205,6 +232,10 @@ function slugify(value) {
     .replace(/^-+|-+$/g, "");
 }
 
+function createPublicId(prefix) {
+  return `${prefix}-${crypto.randomBytes(4).toString("hex").toUpperCase()}`;
+}
+
 function normalizeProduct(product) {
   const name = String(product.name || "").trim();
   return {
@@ -231,7 +262,7 @@ function normalizePhone(value) {
 function normalizeAccount(account) {
   const mobile = normalizePhone(account.mobile);
   return {
-    id: account.id || `AC-${String(Date.now()).slice(-6)}`,
+    id: account.id || createPublicId("AC"),
     mobile,
     clinic: String(account.clinic || "").trim(),
     type: String(account.type || "dentist").trim(),
@@ -292,6 +323,25 @@ function safeOrder(order) {
   };
 }
 
+function maskPhone(value) {
+  const phone = normalizePhone(value);
+  if (phone.length < 4) return "";
+  return `${"*".repeat(Math.max(0, phone.length - 4))}${phone.slice(-4)}`;
+}
+
+function publicOrder(order) {
+  const safe = safeOrder(order);
+  return {
+    ...safe,
+    customer: {
+      name: safe.customer.name,
+      phone: maskPhone(safe.customer.phone),
+      address: "",
+      payment: safe.customer.payment,
+    },
+  };
+}
+
 function parseCookies(req) {
   return Object.fromEntries(
     String(req.headers.cookie || "")
@@ -309,11 +359,17 @@ function sign(value) {
   return crypto.createHmac("sha256", sessionSecret).update(value).digest("base64url");
 }
 
+function timingSafeStringEqual(actual, expected) {
+  const actualHash = crypto.createHash("sha256").update(String(actual || "")).digest();
+  const expectedHash = crypto.createHash("sha256").update(String(expected || "")).digest();
+  return crypto.timingSafeEqual(actualHash, expectedHash);
+}
+
 function createAdminToken() {
   const payload = Buffer.from(
     JSON.stringify({
       role: "admin",
-      exp: Date.now() + 7 * 24 * 60 * 60 * 1000,
+      exp: Date.now() + adminSessionMaxAgeSeconds * 1000,
     })
   ).toString("base64url");
   return `${payload}.${sign(payload)}`;
@@ -322,7 +378,7 @@ function createAdminToken() {
 function verifyAdminToken(token) {
   if (!token || !token.includes(".")) return false;
   const [payload, signature] = token.split(".");
-  if (signature !== sign(payload)) return false;
+  if (!timingSafeStringEqual(signature, sign(payload))) return false;
   try {
     const parsed = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
     return parsed.role === "admin" && Number(parsed.exp) > Date.now();
@@ -332,11 +388,11 @@ function verifyAdminToken(token) {
 }
 
 function adminCookie(token) {
-  return `${adminCookieName}=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=604800${isProduction ? "; Secure" : ""}`;
+  return `${adminCookieName}=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${adminSessionMaxAgeSeconds}${isProduction ? "; Secure" : ""}`;
 }
 
 function clearAdminCookie() {
-  return `${adminCookieName}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${isProduction ? "; Secure" : ""}`;
+  return `${adminCookieName}=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0${isProduction ? "; Secure" : ""}`;
 }
 
 function isAdmin(req) {
@@ -386,8 +442,21 @@ async function readJson(filePath, fallback) {
 }
 
 async function writeJson(filePath, data) {
-  await fs.mkdir(path.dirname(filePath), { recursive: true });
-  await fs.writeFile(filePath, `${JSON.stringify(data, null, 2)}\n`);
+  const previousWrite = fileWriteQueues.get(filePath) || Promise.resolve();
+  const writeTask = previousWrite.catch(() => {}).then(async () => {
+    await fs.mkdir(path.dirname(filePath), { recursive: true });
+    const tempPath = `${filePath}.${process.pid}.${Date.now()}.tmp`;
+    await fs.writeFile(tempPath, `${JSON.stringify(data, null, 2)}\n`);
+    await fs.rename(tempPath, filePath);
+  });
+  fileWriteQueues.set(filePath, writeTask);
+  try {
+    await writeTask;
+  } finally {
+    if (fileWriteQueues.get(filePath) === writeTask) {
+      fileWriteQueues.delete(filePath);
+    }
+  }
 }
 
 async function checkoutPayloadFromBody(body) {
@@ -465,7 +534,7 @@ function razorpayAuthHeader() {
 }
 
 async function createRazorpayOrder(payload) {
-  const receipt = `DF-${Date.now()}`.slice(0, 40);
+  const receipt = createPublicId("DF").slice(0, 40);
   const response = await fetch("https://api.razorpay.com/v1/orders", {
     method: "POST",
     headers: {
@@ -501,28 +570,55 @@ function verifyRazorpaySignature({ razorpay_order_id: orderId, razorpay_payment_
   }
 }
 
+function withSecurityHeaders(headers = {}) {
+  return { ...securityHeaders, ...headers };
+}
+
 function sendJson(res, status, payload, headers = {}) {
-  res.writeHead(status, { "Content-Type": "application/json; charset=utf-8", ...headers });
+  res.writeHead(status, withSecurityHeaders({ "Content-Type": "application/json; charset=utf-8", ...headers }));
   res.end(JSON.stringify(payload));
 }
 
 function sendText(res, status, text) {
-  res.writeHead(status, { "Content-Type": "text/plain; charset=utf-8" });
+  res.writeHead(status, withSecurityHeaders({ "Content-Type": "text/plain; charset=utf-8" }));
   res.end(text);
 }
 
-async function readRequestJson(req) {
+async function readRequestJson(req, maxBytes = maxPublicJsonBodyBytes) {
   const chunks = [];
   let size = 0;
   for await (const chunk of req) {
     size += chunk.length;
-    if (size > 8 * 1024 * 1024) {
+    if (size > maxBytes) {
       throw new Error("Request body too large");
     }
     chunks.push(chunk);
   }
   const raw = Buffer.concat(chunks).toString("utf8");
   return raw ? JSON.parse(raw) : {};
+}
+
+function clientIp(req) {
+  return String(req.headers["x-forwarded-for"] || req.socket.remoteAddress || "local")
+    .split(",")[0]
+    .trim();
+}
+
+function checkRateLimit(req, res, scope, limit, windowMs) {
+  const now = Date.now();
+  const key = `${scope}:${clientIp(req)}`;
+  const entry = rateLimitStore.get(key);
+  if (!entry || entry.resetAt <= now) {
+    rateLimitStore.set(key, { count: 1, resetAt: now + windowMs });
+    return true;
+  }
+  entry.count += 1;
+  if (entry.count > limit) {
+    const retryAfter = Math.max(1, Math.ceil((entry.resetAt - now) / 1000));
+    sendJson(res, 429, { error: "Too many attempts. Please try again later." }, { "Retry-After": String(retryAfter) });
+    return false;
+  }
+  return true;
 }
 
 async function handleApi(req, res, reqUrl) {
@@ -542,6 +638,7 @@ async function handleApi(req, res, reqUrl) {
   }
 
   if (reqUrl.pathname === "/api/payments/razorpay/order" && req.method === "POST") {
+    if (!checkRateLimit(req, res, "payment-order", 20, 10 * 60 * 1000)) return;
     if (!razorpayConfigured()) {
       sendJson(res, 503, { error: "Razorpay is not configured. Add RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET in Render Environment." });
       return;
@@ -588,6 +685,7 @@ async function handleApi(req, res, reqUrl) {
   }
 
   if (reqUrl.pathname === "/api/payments/razorpay/verify" && req.method === "POST") {
+    if (!checkRateLimit(req, res, "payment-verify", 30, 10 * 60 * 1000)) return;
     if (!razorpayConfigured()) {
       sendJson(res, 503, { error: "Razorpay is not configured. Add RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET in Render Environment." });
       return;
@@ -630,7 +728,7 @@ async function handleApi(req, res, reqUrl) {
     }
 
     const order = {
-      id: `DF-${String(Date.now()).slice(-6)}`,
+      id: createPublicId("DF"),
       customer: { ...payload.customer, payment: "Online payment (Razorpay)" },
       items: payload.items,
       subtotal: payload.subtotal,
@@ -670,12 +768,13 @@ async function handleApi(req, res, reqUrl) {
   }
 
   if (reqUrl.pathname === "/api/admin/login" && req.method === "POST") {
+    if (!checkRateLimit(req, res, "admin-login", 8, 15 * 60 * 1000)) return;
     if (!adminPassword) {
       sendJson(res, 503, { error: "Admin password is not configured. Set ADMIN_PASSWORD in Render Environment first." });
       return;
     }
-    const body = await readRequestJson(req);
-    if (String(body.password || "") !== adminPassword) {
+    const body = await readRequestJson(req, 16 * 1024);
+    if (!timingSafeStringEqual(body.password || "", adminPassword)) {
       sendJson(res, 401, { error: "Wrong admin password" });
       return;
     }
@@ -696,7 +795,7 @@ async function handleApi(req, res, reqUrl) {
 
   if (reqUrl.pathname === "/api/products" && req.method === "POST") {
     if (!requireAdmin(req, res)) return;
-    const body = await readRequestJson(req);
+    const body = await readRequestJson(req, maxAdminJsonBodyBytes);
     const product = normalizeProduct(body.product || body);
     if (!product.name) {
       sendJson(res, 400, { error: "Product name is required" });
@@ -739,6 +838,7 @@ async function handleApi(req, res, reqUrl) {
   }
 
   if (reqUrl.pathname === "/api/orders" && req.method === "POST") {
+    if (!checkRateLimit(req, res, "checkout-order", 30, 10 * 60 * 1000)) return;
     const body = await readRequestJson(req);
     const orders = await readJson(ordersFile, []);
     const payload = await checkoutPayloadFromBody(body);
@@ -751,7 +851,7 @@ async function handleApi(req, res, reqUrl) {
     }
 
     const order = {
-      id: `DF-${String(Date.now()).slice(-6)}`,
+      id: createPublicId("DF"),
       customer,
       items,
       subtotal,
@@ -779,21 +879,27 @@ async function handleApi(req, res, reqUrl) {
       return;
     }
     const queryPhone = normalizePhone(query);
+    const looksLikeOrderId = /^DF-[A-Z0-9-]{4,24}$/i.test(query);
+    if (!looksLikeOrderId && queryPhone.length < 10) {
+      sendJson(res, 400, { error: "Enter the full order ID or 10 digit mobile number" });
+      return;
+    }
     const orders = await readJson(ordersFile, []);
     const order = orders.find((item) => {
       const sameId = String(item.id || "").toLowerCase() === query.toLowerCase();
-      const samePhone = queryPhone && normalizePhone(item.customer?.phone).endsWith(queryPhone);
+      const samePhone = queryPhone.length >= 10 && normalizePhone(item.customer?.phone).endsWith(queryPhone.slice(-10));
       return sameId || samePhone;
     });
     if (!order) {
       sendJson(res, 404, { error: "Order not found" });
       return;
     }
-    sendJson(res, 200, safeOrder(order));
+    sendJson(res, 200, publicOrder(order));
     return;
   }
 
   if (reqUrl.pathname === "/api/accounts" && req.method === "POST") {
+    if (!checkRateLimit(req, res, "account-request", 30, 10 * 60 * 1000)) return;
     const body = await readRequestJson(req);
     const account = normalizeAccount(body.account || body);
     if (account.mobile.length < 10 || !account.clinic) {
@@ -824,15 +930,23 @@ async function handleApi(req, res, reqUrl) {
 async function handleStatic(req, res, reqUrl) {
   const requestPath = decodeURIComponent(reqUrl.pathname === "/" ? "/index.html" : reqUrl.pathname);
   const filePath = path.normalize(path.join(rootDir, requestPath));
+  const relativePath = path.relative(rootDir, filePath);
 
-  if (!filePath.startsWith(path.normalize(rootDir))) {
+  if (relativePath.startsWith("..") || path.isAbsolute(relativePath)) {
     sendText(res, 403, "Forbidden");
+    return;
+  }
+
+  const pathSegments = relativePath.split(path.sep);
+  const extension = path.extname(filePath).toLowerCase();
+  if (!publicStaticExtensions.has(extension) || pathSegments.some((segment) => blockedStaticDirectories.has(segment) || segment.startsWith("."))) {
+    sendText(res, 404, "Not found");
     return;
   }
 
   try {
     const data = await fs.readFile(filePath);
-    res.writeHead(200, { "Content-Type": mimeTypes.get(path.extname(filePath)) || "application/octet-stream" });
+    res.writeHead(200, withSecurityHeaders({ "Content-Type": mimeTypes.get(extension) || "application/octet-stream" }));
     res.end(data);
   } catch {
     sendText(res, 404, "Not found");
@@ -843,15 +957,35 @@ await ensureDataFiles();
 
 const server = http.createServer(async (req, res) => {
   try {
+    if (!["GET", "POST", "DELETE", "HEAD"].includes(req.method || "")) {
+      sendJson(res, 405, { error: "Method not allowed" }, { Allow: "GET, POST, DELETE, HEAD" });
+      return;
+    }
+
     const reqUrl = new URL(req.url || "/", `http://127.0.0.1:${port}`);
     if (reqUrl.pathname.startsWith("/api/")) {
+      if (!checkRateLimit(req, res, "api-global", 300, 60 * 1000)) return;
       await handleApi(req, res, reqUrl);
       return;
     }
     await handleStatic(req, res, reqUrl);
   } catch (error) {
-    sendJson(res, 500, { error: error.message || "Server error" });
+    console.error(error);
+    const message = error.message || "Server error";
+    const status = message === "Request body too large" ? 413 : error instanceof SyntaxError ? 400 : 500;
+    sendJson(res, status, { error: status === 500 && isProduction ? "Server error" : message });
   }
+});
+
+server.on("clientError", (error, socket) => {
+  console.error(error);
+  if (socket.writable) {
+    socket.end("HTTP/1.1 400 Bad Request\r\n\r\n");
+  }
+});
+
+process.on("unhandledRejection", (error) => {
+  console.error(error);
 });
 
 server.listen(port, host, () => {
