@@ -49,6 +49,7 @@ const accountPageMessage = $("#accountPageMessage");
 const trackOrderForm = $("#trackOrderForm");
 const trackOrderMessage = $("#trackOrderMessage");
 const trackingResult = $("#trackingResult");
+const membershipAction = $("#membershipAction");
 const adminSearch = $("#adminSearch");
 const adminSearchShell = $(".admin-search");
 const adminNav = $('nav[aria-label="Admin navigation"]');
@@ -100,6 +101,11 @@ const CASH_COD_LIMIT = 20000;
 const FREIGHT_CONFIRMATION_LIMIT = 25000;
 const ORDER_STATUS_FLOW = ["Request received", "Callback done", "Packed", "Shipped", "Delivered"];
 const ORDER_CANCELLED_STATUS = "Cancelled";
+const membershipPlans = {
+  dentist: "Clinic Plus",
+  student: "Student Access",
+  dealer: "Dealer Desk",
+};
 const DEFAULT_HSN = "9018";
 const DEFAULT_UNIT = "Pcs";
 const DEFAULT_GST_RATE = 18;
@@ -623,14 +629,60 @@ function saveCustomerAccount(account) {
   localStorage.setItem(CUSTOMER_ACCOUNT_KEY, JSON.stringify(account));
 }
 
+function accountDisplayName(account) {
+  return String(account?.clinic || account?.name || "Account").trim();
+}
+
+function setAccountFormType(type = "dentist") {
+  $$('input[name="type"]').forEach((input) => {
+    input.checked = input.value === type;
+  });
+}
+
+function hydrateAccountForms(account = loadCustomerAccount()) {
+  if (!account) return;
+  [$("#accountForm"), accountPageForm].filter(Boolean).forEach((form) => {
+    if (form.elements.mobile && account.mobile) form.elements.mobile.value = account.mobile;
+    if (form.elements.clinic && account.clinic) form.elements.clinic.value = account.clinic;
+  });
+  setAccountFormType(account.type || "dentist");
+}
+
+function updateMembershipUi() {
+  const account = loadCustomerAccount();
+  const activeType = account?.type || "";
+  $$(".membership-card").forEach((card) => {
+    const isActive = Boolean(activeType && card.dataset.membershipType === activeType);
+    card.classList.toggle("is-active", isActive);
+    card.setAttribute("aria-pressed", isActive ? "true" : "false");
+  });
+
+  if (!membershipAction) return;
+  if (!account?.clinic) {
+    membershipAction.textContent = "Login to activate";
+    membershipAction.dataset.account = "";
+    return;
+  }
+  const planName = membershipPlans[activeType] || "Membership";
+  membershipAction.textContent = `${planName} active`;
+  membershipAction.removeAttribute("data-account");
+}
+
 function updateAccountButtons() {
   const account = loadCustomerAccount();
-  if (!account?.clinic) return;
+  if (!account?.clinic) {
+    updateMembershipUi();
+    return;
+  }
+  const name = accountDisplayName(account);
   $$("[id='loginButton']").forEach((button) => {
     const label = button.querySelector("span");
-    if (label) label.textContent = "Account";
-    button.setAttribute("aria-label", `${account.clinic} account`);
+    if (label) label.textContent = name.length > 16 ? `${name.slice(0, 14)}...` : name;
+    button.setAttribute("aria-label", `${name} account`);
+    button.title = `${name} account`;
   });
+  hydrateAccountForms(account);
+  updateMembershipUi();
 }
 
 async function fetchBackendOrders() {
@@ -1309,6 +1361,7 @@ function openAccount(event) {
   if (!accountModal) return;
   event?.preventDefault();
   if (accountMessage) accountMessage.textContent = "";
+  hydrateAccountForms();
   accountModal.classList.add("is-open");
   accountModal.setAttribute("aria-hidden", "false");
 }
@@ -1947,6 +2000,25 @@ document.addEventListener("click", async (event) => {
     openProductDetails(detailButton.dataset.product);
   }
 
+  const membershipCard = event.target.closest(".membership-card[data-membership-type]");
+  if (membershipCard) {
+    const selectedType = membershipCard.dataset.membershipType || "dentist";
+    const account = loadCustomerAccount();
+    if (!account?.clinic) {
+      setAccountFormType(selectedType);
+      openAccount(event);
+      if (accountMessage) accountMessage.textContent = `${membershipPlans[selectedType]} selected. Continue with mobile to activate.`;
+    } else {
+      const updatedAccount = { ...account, type: selectedType };
+      saveCustomerAccount(updatedAccount);
+      updateAccountButtons();
+      try {
+        await saveBackendAccount(updatedAccount);
+      } catch {}
+      showToast(`${membershipPlans[selectedType]} activated for ${accountDisplayName(updatedAccount)}.`);
+    }
+  }
+
   const galleryButton = event.target.closest(".thumbnail-row button");
   if (galleryButton) {
     const mainImage = $("[data-gallery-main]") || $(".detail-gallery > img");
@@ -2077,7 +2149,15 @@ $$("[data-scroll]").forEach((button) => {
 });
 
 $$("[data-account]").forEach((button) => {
-  button.addEventListener("click", openAccount);
+  button.addEventListener("click", (event) => {
+    if (loadCustomerAccount()?.clinic && button.id === "membershipAction") {
+      event.preventDefault();
+      $("#membership")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      showToast(`${membershipAction?.textContent || "Membership"} is active.`);
+      return;
+    }
+    openAccount(event);
+  });
 });
 
 if (searchInput) {
@@ -2422,6 +2502,15 @@ productAdminForm?.addEventListener("submit", async (event) => {
 clearProductForm?.addEventListener("click", resetAdminProductForm);
 resetProductForm?.addEventListener("click", resetAdminProductForm);
 
+$$(".membership-card[data-membership-type]").forEach((card) => {
+  card.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      card.click();
+    }
+  });
+});
+
 hydrateAdminProducts();
 renderAdminProductsOnStorefront();
 injectDetailButtons();
@@ -2429,6 +2518,7 @@ setIcons();
 updateDeliveryUi();
 renderCart();
 updateAccountButtons();
+updateMembershipUi();
 loadPaymentConfig();
 const initialSearch = searchParams().get("search");
 if (initialSearch && searchInput) searchInput.value = initialSearch;

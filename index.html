@@ -601,22 +601,22 @@
             <span class="eyebrow">Membership</span>
             <h2>Plans for dentists, students, and dealers</h2>
           </div>
-          <button class="text-link" data-account type="button">Login to activate</button>
+          <button class="text-link" id="membershipAction" data-account type="button">Login to activate</button>
         </div>
         <div class="membership-grid">
-          <article class="membership-card">
+          <article class="membership-card" data-membership-type="dentist" role="button" tabindex="0">
             <i data-lucide="stethoscope"></i>
             <h3>Clinic Plus</h3>
             <p>Monthly essentials list, priority dispatch, and quote support for equipment.</p>
             <strong>Best for active clinics</strong>
           </article>
-          <article class="membership-card">
+          <article class="membership-card" data-membership-type="student" role="button" tabindex="0">
             <i data-lucide="graduation-cap"></i>
             <h3>Student Access</h3>
             <p>Starter kits, consumable bundles, and guided lists for dental colleges.</p>
             <strong>Budget-friendly baskets</strong>
           </article>
-          <article class="membership-card">
+          <article class="membership-card" data-membership-type="dealer" role="button" tabindex="0">
             <i data-lucide="warehouse"></i>
             <h3>Dealer Desk</h3>
             <p>Bulk enquiries, repeat order history, and dedicated procurement callbacks.</p>
