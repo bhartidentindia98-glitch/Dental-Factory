@@ -77,10 +77,15 @@ const PRODUCTS_API = "/api/products";
 const ORDERS_API = "/api/orders";
 const ORDER_TRACK_API = "/api/orders/track";
 const ACCOUNTS_API = "/api/accounts";
+const PAYMENT_CONFIG_API = "/api/payments/config";
+const RAZORPAY_ORDER_API = "/api/payments/razorpay/order";
+const RAZORPAY_VERIFY_API = "/api/payments/razorpay/verify";
 const ADMIN_SESSION_API = "/api/admin/session";
 const ADMIN_LOGIN_API = "/api/admin/login";
 const ADMIN_LOGOUT_API = "/api/admin/logout";
 const CUSTOMER_ACCOUNT_KEY = "dentalFactoryCustomerAccount";
+const ONLINE_PAYMENT_METHOD = "Online payment (Razorpay)";
+let paymentConfig = { razorpayEnabled: false, keyId: "", currency: "INR", businessName: "Dental Factory" };
 
 const productDetails = {
   "Airotor Elite Handpiece": {
@@ -402,6 +407,123 @@ async function saveBackendOrder(customer) {
       items: cartItemsForBackend(),
       total: getCartTotal(),
     }),
+  });
+}
+
+function checkoutPayload(customer) {
+  return {
+    customer,
+    items: cartItemsForBackend(),
+    total: getCartTotal(),
+  };
+}
+
+async function loadPaymentConfig() {
+  try {
+    paymentConfig = await apiJson(PAYMENT_CONFIG_API);
+  } catch {
+    paymentConfig = { razorpayEnabled: false, keyId: "", currency: "INR", businessName: "Dental Factory" };
+  }
+  updatePaymentOptions();
+  return paymentConfig;
+}
+
+function updatePaymentOptions() {
+  $$('select[name="payment"]').forEach((select) => {
+    const onlineOption = Array.from(select.options).find((option) => option.value === ONLINE_PAYMENT_METHOD);
+    if (!onlineOption) return;
+    onlineOption.disabled = !paymentConfig.razorpayEnabled;
+    onlineOption.textContent = paymentConfig.razorpayEnabled ? "Pay online now (Razorpay)" : "Pay online now (Razorpay - setup pending)";
+  });
+  $$(".payment-note").forEach((note) => {
+    note.textContent = paymentConfig.razorpayEnabled
+      ? "Online payment is active. Razorpay will open securely after you submit."
+      : "Online payment will activate after Razorpay keys are added in Render. COD, UPI on delivery, and bank transfer still work.";
+  });
+}
+
+function loadRazorpayCheckout() {
+  if (window.Razorpay) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    const existingScript = document.querySelector('script[src="https://checkout.razorpay.com/v1/checkout.js"]');
+    if (existingScript) {
+      existingScript.addEventListener("load", resolve, { once: true });
+      existingScript.addEventListener("error", reject, { once: true });
+      return;
+    }
+    const script = document.createElement("script");
+    script.src = "https://checkout.razorpay.com/v1/checkout.js";
+    script.onload = resolve;
+    script.onerror = () => reject(new Error("Razorpay checkout script could not be loaded"));
+    document.head.appendChild(script);
+  });
+}
+
+async function createRazorpayOrder(customer) {
+  return apiJson(RAZORPAY_ORDER_API, {
+    method: "POST",
+    body: JSON.stringify(checkoutPayload(customer)),
+  });
+}
+
+async function verifyRazorpayPayment(customer, razorpayResponse) {
+  return apiJson(RAZORPAY_VERIFY_API, {
+    method: "POST",
+    body: JSON.stringify({
+      ...checkoutPayload(customer),
+      razorpay: razorpayResponse,
+    }),
+  });
+}
+
+async function startRazorpayPayment(customer, messageNode, summaryNode, form) {
+  if (!paymentConfig.razorpayEnabled) await loadPaymentConfig();
+  if (!paymentConfig.razorpayEnabled) {
+    throw new Error("Razorpay keys are not added yet. Add keys in Render or choose another payment method.");
+  }
+
+  if (messageNode) messageNode.textContent = "Opening secure Razorpay payment...";
+  const razorpayOrder = await createRazorpayOrder(customer);
+  await loadRazorpayCheckout();
+
+  return new Promise((resolve, reject) => {
+    const checkout = new window.Razorpay({
+      key: razorpayOrder.keyId || paymentConfig.keyId,
+      amount: razorpayOrder.amount,
+      currency: razorpayOrder.currency || paymentConfig.currency || "INR",
+      name: paymentConfig.businessName || "Dental Factory",
+      description: "Dental product order",
+      image: `${window.location.origin}/assets/dental-factory-logo-mark.png`,
+      order_id: razorpayOrder.razorpayOrderId,
+      prefill: {
+        name: customer.name,
+        contact: customer.phone,
+      },
+      notes: {
+        address: customer.address,
+      },
+      theme: {
+        color: "#0b7f86",
+      },
+      handler: async (response) => {
+        try {
+          if (messageNode) messageNode.textContent = "Verifying payment...";
+          const order = await verifyRazorpayPayment(customer, response);
+          if (messageNode) messageNode.textContent = `Payment received. Order ${order.id} saved for callback.`;
+          cart.clear();
+          renderCart();
+          if (summaryNode) renderSummary(summaryNode);
+          form.reset();
+          resolve(order);
+        } catch (error) {
+          reject(error);
+        }
+      },
+      modal: {
+        ondismiss: () => reject(new Error("Payment was closed before completion.")),
+      },
+    });
+    checkout.open();
   });
 }
 
@@ -1089,9 +1211,10 @@ function renderAdminOrders(orders = []) {
 
   orders.forEach((order) => {
     const row = document.createElement("div");
+    const paymentLabel = order.payment?.status ? `${order.payment.status} via ${order.payment.method || order.customer?.payment || "payment"}` : order.customer?.payment || "Payment pending";
     row.innerHTML = `
       <strong>${escapeHtml(order.id)}</strong>
-      <span>${escapeHtml(order.customer?.name || "Customer")} - ${escapeHtml(orderItemSummary(order))}<small>${escapeHtml(order.customer?.phone || "")} | ${escapeHtml(formatDateTime(order.createdAt))}</small></span>
+      <span>${escapeHtml(order.customer?.name || "Customer")} - ${escapeHtml(orderItemSummary(order))}<small>${escapeHtml(order.customer?.phone || "")} | ${escapeHtml(formatDateTime(order.createdAt))} | ${escapeHtml(paymentLabel)}</small></span>
       <b>${escapeHtml(order.status || "Request received")}</b>
     `;
     adminOrdersTable.appendChild(row);
@@ -1120,6 +1243,7 @@ function renderTrackingResult(order) {
       <span class="badge">${escapeHtml(status)}</span>
       <h2>${escapeHtml(order.id)}</h2>
       <p>${escapeHtml(orderItemSummary(order))}</p>
+      <p>${escapeHtml(order.payment?.status || "Payment pending")} | ${escapeHtml(order.payment?.method || order.customer?.payment || "Payment method pending")}</p>
       <p>${escapeHtml(order.customer?.name || "Customer")} | ${escapeHtml(formatDateTime(order.createdAt))}</p>
     </div>
     <div class="status-timeline">
@@ -1401,17 +1525,22 @@ async function submitCheckoutForm(event, messageNode, summaryNode) {
   }
 
   submitButton.disabled = true;
-  if (messageNode) messageNode.textContent = "Saving order request to backend...";
+  const isOnlinePayment = customer.payment === ONLINE_PAYMENT_METHOD;
+  if (messageNode) messageNode.textContent = isOnlinePayment ? "Preparing online payment..." : "Saving order request to backend...";
 
   try {
-    const order = await saveBackendOrder(customer);
-    if (messageNode) messageNode.textContent = `Thanks ${customer.name}. Order ${order.id} saved for callback.`;
-    cart.clear();
-    renderCart();
-    if (summaryNode) renderSummary(summaryNode);
-    form.reset();
+    if (isOnlinePayment) {
+      await startRazorpayPayment(customer, messageNode, summaryNode, form);
+    } else {
+      const order = await saveBackendOrder(customer);
+      if (messageNode) messageNode.textContent = `Thanks ${customer.name}. Order ${order.id} saved for callback.`;
+      cart.clear();
+      renderCart();
+      if (summaryNode) renderSummary(summaryNode);
+      form.reset();
+    }
   } catch (error) {
-    if (messageNode) messageNode.textContent = `Order save failed: ${error.message}. Start the backend server and try again.`;
+    if (messageNode) messageNode.textContent = `Checkout failed: ${error.message}`;
   } finally {
     submitButton.disabled = false;
   }
@@ -1582,6 +1711,7 @@ injectDetailButtons();
 setIcons();
 renderCart();
 updateAccountButtons();
+loadPaymentConfig();
 const initialSearch = searchParams().get("search");
 if (initialSearch && searchInput) searchInput.value = initialSearch;
 applyFilter("all");

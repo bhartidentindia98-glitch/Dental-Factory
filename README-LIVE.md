@@ -12,9 +12,13 @@ Open `http://127.0.0.1:5173/`.
 
 - `ADMIN_PASSWORD`: set your private admin password.
 - `SESSION_SECRET`: set any long random text for admin login cookies.
+- `RAZORPAY_KEY_ID`: Razorpay test or live Key ID for online payments.
+- `RAZORPAY_KEY_SECRET`: Razorpay test or live Key Secret for server-side order creation and signature verification.
+- `PAYMENT_CURRENCY`: keep `INR` for Indian payments.
 - `PORT`: hosting providers usually set this automatically.
 
 Admin login is disabled on production until `ADMIN_PASSWORD` is set in Render. This prevents the local demo password from working on the live website.
+Online payment remains disabled until the two Razorpay keys are set in Render.
 
 ## Live commands
 
@@ -29,6 +33,7 @@ Admin login is disabled on production until `ADMIN_PASSWORD` is set in Render. T
 4. Set `ADMIN_PASSWORD` in Render environment variables.
 5. Deploy and open the generated HTTPS URL.
 6. Open `/admin.html`, log in with your Render `ADMIN_PASSWORD`, and place one test order from the storefront.
+7. To enable online payment, add Razorpay test keys in Render, test checkout, then replace them with live keys from the Razorpay dashboard.
 
 ## Launch smoke test
 
@@ -37,6 +42,7 @@ Admin login is disabled on production until `ADMIN_PASSWORD` is set in Render. T
 3. Copy the order ID from the checkout success message.
 4. Open `track-order.html` and search by order ID or mobile number.
 5. Open `admin.html` and confirm the order appears in Orders.
+6. For Razorpay, choose "Pay online now", complete a test payment, and confirm the order status becomes `Paid - callback pending`.
 
 ## Important
 

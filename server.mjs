@@ -11,10 +11,14 @@ const isProduction = process.env.NODE_ENV === "production";
 const localAdminPassword = "DentalFactory@2026";
 const adminPassword = process.env.ADMIN_PASSWORD || (isProduction ? "" : localAdminPassword);
 const sessionSecret = process.env.SESSION_SECRET || "dental-factory-local-session";
+const razorpayKeyId = process.env.RAZORPAY_KEY_ID || "";
+const razorpayKeySecret = process.env.RAZORPAY_KEY_SECRET || "";
+const paymentCurrency = String(process.env.PAYMENT_CURRENCY || "INR").toUpperCase();
 const dataDir = path.resolve(process.env.DATA_DIR || path.join(rootDir, "data"));
 const productsFile = path.join(dataDir, "products.json");
 const ordersFile = path.join(dataDir, "orders.json");
 const accountsFile = path.join(dataDir, "accounts.json");
+const paymentAttemptsFile = path.join(dataDir, "payment-attempts.json");
 const adminCookieName = "df_admin_session";
 
 const mimeTypes = new Map([
@@ -246,6 +250,18 @@ function normalizeOrderCustomer(customer) {
   };
 }
 
+function normalizePayment(payment) {
+  return {
+    method: String(payment?.method || "").trim(),
+    status: String(payment?.status || "").trim(),
+    provider: String(payment?.provider || "").trim(),
+    razorpayOrderId: String(payment?.razorpayOrderId || "").trim(),
+    razorpayPaymentId: String(payment?.razorpayPaymentId || "").trim(),
+    amount: Number(payment?.amount || 0),
+    currency: String(payment?.currency || paymentCurrency).trim(),
+  };
+}
+
 function safeOrder(order) {
   return {
     id: order.id,
@@ -253,6 +269,7 @@ function safeOrder(order) {
     items: Array.isArray(order.items) ? order.items.map(normalizeOrderItem).filter((item) => item.name) : [],
     total: Number(order.total || 0),
     status: String(order.status || "Request received"),
+    payment: normalizePayment(order.payment || { method: order.customer?.payment || "Cash on delivery", status: "Pending" }),
     createdAt: order.createdAt,
   };
 }
@@ -335,6 +352,11 @@ async function ensureDataFiles() {
   } catch {
     await writeJson(accountsFile, []);
   }
+  try {
+    await fs.access(paymentAttemptsFile);
+  } catch {
+    await writeJson(paymentAttemptsFile, []);
+  }
 }
 
 async function readJson(filePath, fallback) {
@@ -348,6 +370,78 @@ async function readJson(filePath, fallback) {
 async function writeJson(filePath, data) {
   await fs.mkdir(path.dirname(filePath), { recursive: true });
   await fs.writeFile(filePath, `${JSON.stringify(data, null, 2)}\n`);
+}
+
+async function checkoutPayloadFromBody(body) {
+  const customer = normalizeOrderCustomer(body.customer || {});
+  const submittedItems = Array.isArray(body.items) ? body.items.map(normalizeOrderItem).filter((item) => item.name) : [];
+  const catalog = (await readJson(productsFile, [])).map(normalizeProduct);
+  const pricesByName = new Map(catalog.map((product) => [product.name.toLowerCase(), product.price]));
+  const items = submittedItems.map((item) => {
+    const catalogPrice = pricesByName.get(item.name.toLowerCase());
+    return { ...item, price: catalogPrice || item.price };
+  });
+  const total = items.reduce((sum, item) => sum + item.price * item.qty, 0);
+  return { customer, items, total };
+}
+
+function checkoutValidationError({ customer, items, total }) {
+  if (!customer.name || normalizePhone(customer.phone).length < 10 || !customer.address) {
+    return "Customer name, 10 digit phone number, and address are required";
+  }
+  if (!items.length || total <= 0) {
+    return "Add at least one product before placing an order";
+  }
+  return "";
+}
+
+function razorpayConfigured() {
+  return Boolean(razorpayKeyId && razorpayKeySecret);
+}
+
+function amountToSubunits(amount) {
+  return Math.round(Number(amount || 0) * 100);
+}
+
+function razorpayAuthHeader() {
+  return `Basic ${Buffer.from(`${razorpayKeyId}:${razorpayKeySecret}`).toString("base64")}`;
+}
+
+async function createRazorpayOrder(payload) {
+  const receipt = `DF-${Date.now()}`.slice(0, 40);
+  const response = await fetch("https://api.razorpay.com/v1/orders", {
+    method: "POST",
+    headers: {
+      Authorization: razorpayAuthHeader(),
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      amount: amountToSubunits(payload.total),
+      currency: paymentCurrency,
+      receipt,
+      notes: {
+        customer_name: payload.customer.name,
+        customer_phone: normalizePhone(payload.customer.phone),
+        source: "Dental Factory website",
+      },
+    }),
+  });
+
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(result.error?.description || result.error?.reason || "Razorpay order could not be created");
+  }
+  return result;
+}
+
+function verifyRazorpaySignature({ razorpay_order_id: orderId, razorpay_payment_id: paymentId, razorpay_signature: signature }) {
+  if (!orderId || !paymentId || !signature) return false;
+  const expected = crypto.createHmac("sha256", razorpayKeySecret).update(`${orderId}|${paymentId}`).digest("hex");
+  try {
+    return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(signature));
+  } catch {
+    return false;
+  }
 }
 
 function sendJson(res, status, payload, headers = {}) {
@@ -377,6 +471,129 @@ async function readRequestJson(req) {
 async function handleApi(req, res, reqUrl) {
   if (reqUrl.pathname === "/api/health") {
     sendJson(res, 200, { ok: true, name: "Dental Factory API" });
+    return;
+  }
+
+  if (reqUrl.pathname === "/api/payments/config" && req.method === "GET") {
+    sendJson(res, 200, {
+      razorpayEnabled: razorpayConfigured(),
+      keyId: razorpayConfigured() ? razorpayKeyId : "",
+      currency: paymentCurrency,
+      businessName: "Dental Factory",
+    });
+    return;
+  }
+
+  if (reqUrl.pathname === "/api/payments/razorpay/order" && req.method === "POST") {
+    if (!razorpayConfigured()) {
+      sendJson(res, 503, { error: "Razorpay is not configured. Add RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET in Render Environment." });
+      return;
+    }
+
+    const body = await readRequestJson(req);
+    const payload = await checkoutPayloadFromBody(body);
+    const error = checkoutValidationError(payload);
+    if (error) {
+      sendJson(res, 400, { error });
+      return;
+    }
+
+    const razorpayOrder = await createRazorpayOrder(payload);
+    const attempts = await readJson(paymentAttemptsFile, []);
+    attempts.unshift({
+      razorpayOrderId: razorpayOrder.id,
+      receipt: razorpayOrder.receipt,
+      customer: payload.customer,
+      items: payload.items,
+      total: payload.total,
+      amount: razorpayOrder.amount,
+      currency: razorpayOrder.currency || paymentCurrency,
+      status: "created",
+      createdAt: new Date().toISOString(),
+    });
+    await writeJson(paymentAttemptsFile, attempts.slice(0, 200));
+    sendJson(res, 201, {
+      keyId: razorpayKeyId,
+      razorpayOrderId: razorpayOrder.id,
+      amount: razorpayOrder.amount,
+      currency: razorpayOrder.currency || paymentCurrency,
+      receipt: razorpayOrder.receipt,
+      total: payload.total,
+      customer: payload.customer,
+      items: payload.items,
+    });
+    return;
+  }
+
+  if (reqUrl.pathname === "/api/payments/razorpay/verify" && req.method === "POST") {
+    if (!razorpayConfigured()) {
+      sendJson(res, 503, { error: "Razorpay is not configured. Add RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET in Render Environment." });
+      return;
+    }
+
+    const body = await readRequestJson(req);
+    const razorpay = body.razorpay || body;
+    const attempts = await readJson(paymentAttemptsFile, []);
+    const attemptIndex = attempts.findIndex((attempt) => attempt.razorpayOrderId === razorpay.razorpay_order_id);
+    const attempt = attempts[attemptIndex];
+    if (!attempt) {
+      sendJson(res, 400, { error: "Payment attempt was not found. Please start checkout again." });
+      return;
+    }
+
+    const payload = {
+      customer: normalizeOrderCustomer(attempt.customer),
+      items: Array.isArray(attempt.items) ? attempt.items.map(normalizeOrderItem).filter((item) => item.name) : [],
+      total: Number(attempt.total || 0),
+    };
+    const error = checkoutValidationError(payload);
+    if (error) {
+      sendJson(res, 400, { error });
+      return;
+    }
+
+    if (!verifyRazorpaySignature(razorpay)) {
+      sendJson(res, 400, { error: "Payment verification failed. Please contact support before retrying." });
+      return;
+    }
+
+    const orders = await readJson(ordersFile, []);
+    const existingOrder = orders.find((order) => order.payment?.razorpayPaymentId === razorpay.razorpay_payment_id);
+    if (existingOrder) {
+      sendJson(res, 200, safeOrder(existingOrder));
+      return;
+    }
+
+    const order = {
+      id: `DF-${String(Date.now()).slice(-6)}`,
+      customer: { ...payload.customer, payment: "Online payment (Razorpay)" },
+      items: payload.items,
+      total: payload.total,
+      status: "Paid - callback pending",
+      payment: {
+        method: "Online payment (Razorpay)",
+        status: "Paid",
+        provider: "Razorpay",
+        razorpayOrderId: razorpay.razorpay_order_id,
+        razorpayPaymentId: razorpay.razorpay_payment_id,
+        amount: payload.total,
+        currency: paymentCurrency,
+      },
+      createdAt: new Date().toISOString(),
+    };
+    orders.unshift(order);
+    await writeJson(ordersFile, orders);
+    if (attemptIndex >= 0) {
+      attempts[attemptIndex] = {
+        ...attempt,
+        status: "paid",
+        razorpayPaymentId: razorpay.razorpay_payment_id,
+        paidAt: order.createdAt,
+        dentalFactoryOrderId: order.id,
+      };
+      await writeJson(paymentAttemptsFile, attempts.slice(0, 200));
+    }
+    sendJson(res, 201, safeOrder(order));
     return;
   }
 
@@ -457,17 +674,11 @@ async function handleApi(req, res, reqUrl) {
   if (reqUrl.pathname === "/api/orders" && req.method === "POST") {
     const body = await readRequestJson(req);
     const orders = await readJson(ordersFile, []);
-    const customer = normalizeOrderCustomer(body.customer);
-    const items = Array.isArray(body.items) ? body.items.map(normalizeOrderItem).filter((item) => item.name) : [];
-    const total = Number(body.total || items.reduce((sum, item) => sum + item.price * item.qty, 0));
+    const { customer, items, total } = await checkoutPayloadFromBody(body);
+    const error = checkoutValidationError({ customer, items, total });
 
-    if (!customer.name || normalizePhone(customer.phone).length < 10 || !customer.address) {
-      sendJson(res, 400, { error: "Customer name, 10 digit phone number, and address are required" });
-      return;
-    }
-
-    if (!items.length || total <= 0) {
-      sendJson(res, 400, { error: "Add at least one product before placing an order" });
+    if (error) {
+      sendJson(res, 400, { error });
       return;
     }
 
@@ -477,6 +688,12 @@ async function handleApi(req, res, reqUrl) {
       items,
       total,
       status: "Request received",
+      payment: {
+        method: customer.payment,
+        status: "Pending",
+        amount: total,
+        currency: paymentCurrency,
+      },
       createdAt: new Date().toISOString(),
     };
     orders.unshift(order);

@@ -295,7 +295,8 @@
         <label>Full name<input name="name" required placeholder="Dr. Praveen Sharma" /></label>
         <label>Phone number<input name="phone" required inputmode="tel" placeholder="10 digit mobile number" /></label>
         <label>Clinic address<textarea name="address" required placeholder="Clinic name, street, city, state"></textarea></label>
-        <label>Payment method<select name="payment"><option>Cash on delivery</option><option>UPI on delivery</option><option>Bank transfer</option></select></label>
+        <label>Payment method<select name="payment"><option>Cash on delivery</option><option value="Online payment (Razorpay)" data-online-payment>Pay online now (Razorpay)</option><option>UPI on delivery</option><option>Bank transfer</option></select></label>
+        <p class="payment-note">Checking online payment availability...</p>
         <button class="checkout-button" type="submit">Place order request</button>
         <p class="checkout-message" id="checkoutMessage" role="status"></p>
       </form>
