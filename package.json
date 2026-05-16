@@ -1,0 +1,13 @@
+{
+  "name": "dental-factory",
+  "version": "1.0.0",
+  "description": "Dental Factory ecommerce storefront and admin backend.",
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs",
+    "dev": "node server.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

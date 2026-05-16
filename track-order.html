@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Track Order - Dental Factory</title>
+    <meta name="description" content="Track a Dental Factory dental order request and callback status." />
+    <link rel="preconnect" href="https://unpkg.com" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="announcement">
+        <span>Same day dispatch on 4,000+ clinic essentials</span>
+        <a href="index.html#clinic-setup">New clinic setup desk</a>
+      </div>
+
+      <div class="header-main">
+        <a class="brand" href="index.html" aria-label="Dental Factory home">
+          <span class="brand-mark"><i data-lucide="factory"></i></span>
+          <span><strong>Dental Factory</strong><small>Factory-direct dental supply</small></span>
+        </a>
+
+        <form class="delivery-box" id="deliveryForm">
+          <label for="pincode">Delivering to</label>
+          <div class="pin-control">
+            <i data-lucide="map-pin"></i>
+            <input id="pincode" inputmode="numeric" maxlength="6" placeholder="Enter pincode" />
+            <button type="submit" aria-label="Check delivery"><i data-lucide="check"></i></button>
+          </div>
+        </form>
+
+        <label class="search-shell" for="siteSearch">
+          <i data-lucide="search"></i>
+          <input id="siteSearch" type="search" placeholder="Search over 20,000 dental products" />
+        </label>
+
+        <div class="header-actions">
+          <a class="icon-action" id="loginButton" href="login.html" aria-label="Login"><i data-lucide="user-round"></i><span>Login</span></a>
+          <a class="icon-action cart-button" id="cartButton" href="cart.html" aria-label="Cart">
+            <i data-lucide="shopping-cart"></i><span>Cart</span><b id="cartCount">0</b>
+          </a>
+        </div>
+      </div>
+
+      <nav class="category-nav" aria-label="Primary categories">
+        <a class="nav-pill" href="products.html">Category</a>
+        <a class="nav-pill" href="products.html#brands">Brand</a>
+        <a class="nav-pill" href="products.html">Freebies</a>
+        <a class="nav-pill" href="products.html">Best Sellers</a>
+        <a class="nav-pill" href="index.html#membership">Membership</a>
+        <a class="nav-pill is-active" href="track-order.html">Track Order</a>
+        <a class="nav-pill" href="admin.html">Admin</a>
+      </nav>
+    </header>
+
+    <main>
+      <section class="page-header">
+        <nav class="breadcrumb" aria-label="Breadcrumb">
+          <a href="index.html">Home</a>
+          <span>/</span>
+          <span>Track Order</span>
+        </nav>
+        <div>
+          <span class="eyebrow">Order status</span>
+          <h1>Track callback, dispatch, and delivery updates</h1>
+          <p>Use your order request ID or mobile number to view saved Dental Factory order updates.</p>
+        </div>
+      </section>
+
+      <section class="tracking-layout">
+        <form class="tracking-panel" id="trackOrderForm">
+          <h2>Find order</h2>
+          <label>
+            Order ID or mobile number
+            <input name="order" required placeholder="DF-123456 or 10 digit mobile" />
+          </label>
+          <button class="checkout-button" type="submit">Track order</button>
+          <p class="checkout-message" id="trackOrderMessage" role="status"></p>
+        </form>
+
+        <article class="tracking-result" id="trackingResult">
+          <div class="tracking-head">
+            <span class="badge">Order lookup</span>
+            <h2>Enter order ID</h2>
+            <p>Checkout requests will show live callback and dispatch status here.</p>
+          </div>
+          <div class="status-timeline">
+            <div class="is-done">
+              <span></span>
+              <div><strong>Request received</strong><p>Order basket captured for callback.</p></div>
+            </div>
+            <div class="is-done">
+              <span></span>
+              <div><strong>Procurement callback</strong><p>Availability and bulk pricing confirmed.</p></div>
+            </div>
+            <div class="is-active">
+              <span></span>
+              <div><strong>Packing in warehouse</strong><p>Items are being prepared for dispatch.</p></div>
+            </div>
+            <div>
+              <span></span>
+              <div><strong>Out for delivery</strong><p>Tracking link will be shared after pickup.</p></div>
+            </div>
+          </div>
+        </article>
+      </section>
+    </main>
+
+    <footer class="site-footer" id="contact">
+      <div><strong>Dental Factory</strong><p>Clinic supplies, factory-direct confidence.</p></div>
+      <div><h2>Shop</h2><a href="products.html">All products</a><a href="product-detail.html">Featured product</a><a href="index.html#clinic-setup">Clinic setup</a></div>
+      <div><h2>Help</h2><a href="track-order.html">Track order</a><a href="cart.html">Cart</a><a href="checkout.html">Checkout</a><a href="shipping-policy.html">Shipping Policy</a><a href="returns-refunds.html">Returns & Refunds</a></div>
+      <div><h2>Tools</h2><a href="login.html">Login</a><a href="admin.html">Admin dashboard</a><a href="privacy-policy.html">Privacy Policy</a><a href="terms.html">Terms</a><a href="contact.html">Contact</a><a href="tel:+917678541041">+91 7678541041</a><a href="https://wa.me/917678541041">WhatsApp support</a><span>Mon-Sat 9:00 AM - 7:00 PM</span></div>
+    </footer>
+
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+    <script src="script.js"></script>
+  </body>
+</html>

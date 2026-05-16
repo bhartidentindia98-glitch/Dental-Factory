@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Admin Dashboard - Dental Factory</title>
+    <meta name="description" content="Frontend admin dashboard prototype for dental ecommerce orders, inventory, and enquiries." />
+    <link rel="preconnect" href="https://unpkg.com" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="announcement">
+        <span>Admin prototype for catalog, orders, and clinic setup enquiries</span>
+        <a href="products.html">Open storefront</a>
+      </div>
+
+      <div class="header-main">
+        <a class="brand" href="index.html" aria-label="Dental Factory home">
+          <span class="brand-mark"><i data-lucide="factory"></i></span>
+          <span><strong>Dental Factory</strong><small>Admin dashboard</small></span>
+        </a>
+
+        <label class="search-shell admin-search" for="adminSearch" hidden>
+          <i data-lucide="search"></i>
+          <input id="adminSearch" type="search" placeholder="Search orders, products, or enquiries" />
+        </label>
+
+        <div class="header-actions">
+          <a class="icon-action" href="products.html" aria-label="Storefront"><i data-lucide="store"></i><span>Store</span></a>
+          <a class="icon-action cart-button" href="track-order.html" aria-label="Track orders"><i data-lucide="package-search"></i><span>Track</span></a>
+          <button class="icon-action" id="adminLogoutButton" type="button" hidden><i data-lucide="log-out"></i><span>Logout</span></button>
+        </div>
+      </div>
+
+      <nav class="category-nav" aria-label="Admin navigation" hidden>
+        <a class="nav-pill is-active" href="#overview">Overview</a>
+        <a class="nav-pill" href="#products-admin">Products</a>
+        <a class="nav-pill" href="#orders">Orders</a>
+        <a class="nav-pill" href="#inventory">Inventory</a>
+        <a class="nav-pill" href="#enquiries">Enquiries</a>
+        <a class="nav-pill" href="index.html">Website</a>
+      </nav>
+    </header>
+
+    <section class="admin-auth-card" id="adminAuth">
+      <form class="checkout-panel admin-auth-form" id="adminLoginForm">
+        <span class="eyebrow">Admin access</span>
+        <h1>Login to manage Dental Factory</h1>
+        <label>
+          Admin password
+          <input name="password" type="password" required autocomplete="current-password" placeholder="Enter admin password" />
+        </label>
+        <button class="checkout-button" type="submit">Unlock admin</button>
+        <p class="checkout-message" id="adminAuthMessage" role="status"></p>
+      </form>
+    </section>
+
+    <main id="adminDashboard" hidden>
+      <section class="page-header">
+        <nav class="breadcrumb" aria-label="Breadcrumb">
+          <a href="index.html">Home</a>
+          <span>/</span>
+          <span>Admin</span>
+        </nav>
+        <div>
+          <span class="eyebrow">Dashboard</span>
+          <h1>Manage dental orders, stock alerts, and procurement requests</h1>
+          <p>Live admin dashboard for product catalog and customer order requests.</p>
+        </div>
+        <a class="primary-link" href="products.html">View store</a>
+      </section>
+
+      <section class="admin-metrics" id="overview">
+        <article><span>Today orders</span><strong data-admin-metric="todayOrders">0</strong><small data-admin-metric="callbackOrders">0 awaiting callback</small></article>
+        <article><span>Revenue estimate</span><strong data-admin-metric="revenue">Rs. 0</strong><small>Saved order requests</small></article>
+        <article><span>Low stock</span><strong data-admin-metric="lowStock">0</strong><small>Products at 20 or less</small></article>
+        <article><span>Catalog items</span><strong data-admin-metric="catalog">0</strong><small>Live products in backend</small></article>
+      </section>
+
+      <section class="admin-grid">
+        <article class="admin-card wide-card" id="products-admin">
+          <div class="section-heading">
+            <div><span class="eyebrow">Catalog</span><h2>Add / edit products</h2></div>
+            <button class="text-link" id="resetProductForm" type="button">New product</button>
+          </div>
+          <div class="product-admin-layout">
+            <form class="product-admin-form" id="productAdminForm">
+              <input type="hidden" name="editing" />
+              <label>
+                Product name
+                <input name="name" required placeholder="Airotor Elite Handpiece" />
+              </label>
+              <label>
+                Brand
+                <input name="brand" required placeholder="Waldent" />
+              </label>
+              <label>
+                Category
+                <select name="category" required>
+                  <option value="Equipment">Equipment</option>
+                  <option value="Rotary instruments">Rotary instruments</option>
+                  <option value="Restoratives">Restoratives</option>
+                  <option value="Endodontics">Endodontics</option>
+                  <option value="Sterilization">Sterilization</option>
+                  <option value="Implants">Implants</option>
+                  <option value="Orthodontics">Orthodontics</option>
+                </select>
+              </label>
+              <label>
+                Selling price
+                <input name="price" required inputmode="numeric" placeholder="1899" />
+              </label>
+              <label>
+                MRP
+                <input name="mrp" required inputmode="numeric" placeholder="2299" />
+              </label>
+              <label>
+                Stock quantity
+                <input name="stock" required inputmode="numeric" placeholder="42" />
+              </label>
+              <label class="full-field">
+                Short description
+                <textarea name="description" required placeholder="Push button cartridge, clean spray, ceramic bearings."></textarea>
+              </label>
+              <label class="full-field">
+                Image URL or file name
+                <input name="image" placeholder="assets/air-rotor.png" />
+              </label>
+              <label class="full-field">
+                Upload image preview
+                <input name="imageUpload" type="file" accept="image/*" />
+              </label>
+              <div class="product-image-preview full-field">
+                <img id="productImagePreview" src="assets/hero-dental-shop.png" alt="Product preview" />
+                <span>Preview updates when you choose an image or edit a product.</span>
+              </div>
+              <div class="form-actions full-field">
+                <button class="checkout-button" type="submit">Save product</button>
+                <button class="secondary-link" id="clearProductForm" type="button">Clear</button>
+              </div>
+              <p class="checkout-message full-field" id="productAdminMessage" role="status"></p>
+            </form>
+
+            <div class="product-admin-table" id="productAdminTable">
+              <div class="product-admin-row product-admin-head">
+                <span>Product</span>
+                <span>Category</span>
+                <span>Price</span>
+                <span>Stock</span>
+                <span>Action</span>
+              </div>
+              <div class="product-admin-row" data-name="Airotor Elite Handpiece" data-brand="Waldent" data-category="Rotary instruments" data-price="1899" data-mrp="2299" data-stock="42" data-description="Push button cartridge, clean spray, ceramic bearings." data-image="assets/air-rotor.png">
+                <strong>Airotor Elite Handpiece<small>Waldent</small></strong>
+                <span>Rotary instruments</span>
+                <span>Rs. 1,899</span>
+                <b>42</b>
+                <div class="row-actions"><button type="button" data-edit-product>Edit</button><button type="button" data-delete-product>Delete</button></div>
+              </div>
+              <div class="product-admin-row" data-name="Universal Composite Syringe Kit" data-brand="3M ESPE" data-category="Restoratives" data-price="1249" data-mrp="1650" data-stock="28" data-description="Microhybrid restorative shades for daily anterior and posterior work." data-image="assets/composite-kit.png">
+                <strong>Universal Composite Syringe Kit<small>3M ESPE</small></strong>
+                <span>Restoratives</span>
+                <span>Rs. 1,249</span>
+                <b>28</b>
+                <div class="row-actions"><button type="button" data-edit-product>Edit</button><button type="button" data-delete-product>Delete</button></div>
+              </div>
+              <div class="product-admin-row" data-name="Class B Autoclave 18L" data-brand="Waldent" data-category="Sterilization" data-price="42999" data-mrp="49999" data-stock="16" data-description="Pre-vacuum cycles, printer-ready, tray set included." data-image="assets/autoclave.png">
+                <strong>Class B Autoclave 18L<small>Waldent</small></strong>
+                <span>Sterilization</span>
+                <span>Rs. 42,999</span>
+                <b>16</b>
+                <div class="row-actions"><button type="button" data-edit-product>Edit</button><button type="button" data-delete-product>Delete</button></div>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <article class="admin-card" id="orders">
+          <div class="section-heading">
+            <div><span class="eyebrow">Orders</span><h2>Recent requests</h2></div>
+            <button class="text-link" id="refreshOrdersButton" type="button">Refresh</button>
+          </div>
+          <div class="admin-table" id="adminOrdersTable">
+            <div><strong>No orders yet</strong><span>Checkout requests will appear here.</span><b>Waiting</b></div>
+          </div>
+        </article>
+
+        <article class="admin-card" id="inventory">
+          <div class="section-heading">
+            <div><span class="eyebrow">Inventory</span><h2>Stock attention</h2></div>
+            <button class="text-link" id="addStockButton" type="button">Add stock</button>
+          </div>
+          <div class="stock-list">
+            <div><span>Airotor Elite Handpiece</span><meter min="0" max="100" value="42"></meter><b>42%</b></div>
+            <div><span>Universal Composite Kit</span><meter min="0" max="100" value="28"></meter><b>28%</b></div>
+            <div><span>Disposable Dental Bibs</span><meter min="0" max="100" value="16"></meter><b>16%</b></div>
+            <div><span>Class B Autoclave 18L</span><meter min="0" max="100" value="64"></meter><b>64%</b></div>
+          </div>
+        </article>
+
+        <article class="admin-card wide-card" id="enquiries">
+          <div class="section-heading">
+            <div><span class="eyebrow">Procurement</span><h2>Clinic setup enquiries</h2></div>
+            <button class="text-link" id="assignCallbackButton" type="button">Assign callback</button>
+          </div>
+          <div class="enquiry-board">
+            <div><strong>New clinic setup</strong><span>Single chair clinic, Rs. 5L - Rs. 10L, Delhi</span><button data-open-enquiry type="button">Open</button></div>
+            <div><strong>Bulk consumables</strong><span>Monthly restorative and sterilization basket</span><button data-open-enquiry type="button">Open</button></div>
+            <div><strong>Equipment quote</strong><span>Chair, compressor, suction, autoclave bundle</span><button data-open-enquiry type="button">Open</button></div>
+          </div>
+          <p class="checkout-message" id="adminActionMessage" role="status"></p>
+        </article>
+      </section>
+    </main>
+
+    <footer class="site-footer" id="contact">
+      <div><strong>Dental Factory</strong><p>Clinic supplies, factory-direct confidence.</p></div>
+      <div><h2>Shop</h2><a href="products.html">All products</a><a href="product-detail.html">Featured product</a><a href="index.html#clinic-setup">Clinic setup</a></div>
+      <div><h2>Help</h2><a href="track-order.html">Track order</a><a href="cart.html">Cart</a><a href="checkout.html">Checkout</a><a href="shipping-policy.html">Shipping Policy</a><a href="returns-refunds.html">Returns & Refunds</a></div>
+      <div><h2>Tools</h2><a href="login.html">Login</a><a href="admin.html">Admin dashboard</a><a href="privacy-policy.html">Privacy Policy</a><a href="terms.html">Terms</a><a href="contact.html">Contact</a><a href="tel:+917678541041">+91 7678541041</a><a href="https://wa.me/917678541041">WhatsApp support</a><span>Demo admin interface</span></div>
+    </footer>
+
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+    <script src="script.js"></script>
+  </body>
+</html>

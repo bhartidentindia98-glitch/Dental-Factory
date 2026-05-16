@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Login - Dental Factory</title>
+    <meta name="description" content="Login or create a Dental Factory dental marketplace account." />
+    <link rel="preconnect" href="https://unpkg.com" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="announcement"><span>Same day dispatch on 4,000+ clinic essentials</span><a href="index.html#clinic-setup">New clinic setup desk</a></div>
+      <div class="header-main">
+        <a class="brand" href="index.html" aria-label="Dental Factory home"><span class="brand-mark"><i data-lucide="factory"></i></span><span><strong>Dental Factory</strong><small>Factory-direct dental supply</small></span></a>
+        <form class="delivery-box" id="deliveryForm"><label for="pincode">Delivering to</label><div class="pin-control"><i data-lucide="map-pin"></i><input id="pincode" inputmode="numeric" maxlength="6" placeholder="Enter pincode" /><button type="submit" aria-label="Check delivery"><i data-lucide="check"></i></button></div></form>
+        <label class="search-shell" for="siteSearch"><i data-lucide="search"></i><input id="siteSearch" type="search" placeholder="Search over 20,000 dental products" /></label>
+        <div class="header-actions"><a class="icon-action" id="loginButton" href="login.html" aria-label="Login"><i data-lucide="user-round"></i><span>Login</span></a><a class="icon-action cart-button" id="cartButton" href="cart.html" aria-label="Cart"><i data-lucide="shopping-cart"></i><span>Cart</span><b id="cartCount">0</b></a></div>
+      </div>
+      <nav class="category-nav" aria-label="Primary categories">
+        <a class="nav-pill" href="products.html">Category</a><a class="nav-pill" href="products.html#brands">Brand</a><a class="nav-pill" href="products.html">Freebies</a><a class="nav-pill" href="products.html">Best Sellers</a><a class="nav-pill" href="index.html#membership">Membership</a><a class="nav-pill" href="index.html#events">Events</a><a class="nav-pill" href="index.html#clinic-setup">New Clinic Setup</a>
+      </nav>
+    </header>
+
+    <main>
+      <section class="auth-page">
+        <div class="auth-copy">
+          <span class="eyebrow">Account</span>
+          <h1>Login or create your clinic account</h1>
+          <p>Track order requests, save clinic addresses, and access membership callbacks for bulk procurement.</p>
+          <div class="assurance-strip auth-assurance">
+            <div><i data-lucide="badge-check"></i><strong>Order tracking</strong><span>Keep one place for callback requests.</span></div>
+            <div><i data-lucide="wallet-cards"></i><strong>Bulk pricing</strong><span>Unlock enquiry support for repeat orders.</span></div>
+          </div>
+        </div>
+
+        <form class="account-panel auth-panel" id="accountPageForm">
+          <h2>Continue with mobile</h2>
+          <p class="account-note">This prototype creates a demo account confirmation.</p>
+          <label>Mobile number<input name="mobile" required inputmode="tel" placeholder="Account mobile number" /></label>
+          <label>Clinic or doctor name<input name="clinic" required placeholder="Clinic name" /></label>
+          <div class="account-options" aria-label="Account type">
+            <label><input name="type" type="radio" checked value="dentist" /> Dentist</label>
+            <label><input name="type" type="radio" value="dealer" /> Dealer</label>
+            <label><input name="type" type="radio" value="student" /> Student</label>
+          </div>
+          <button class="checkout-button" type="submit">Continue</button>
+          <p class="checkout-message" id="accountPageMessage" role="status"></p>
+        </form>
+      </section>
+    </main>
+
+    <footer class="site-footer" id="contact">
+      <div><strong>Dental Factory</strong><p>Clinic supplies, factory-direct confidence.</p></div>
+      <div><h2>Shop</h2><a href="products.html">All products</a><a href="product-detail.html">Featured product</a><a href="index.html#clinic-setup">Clinic setup</a></div>
+      <div><h2>Help</h2><a href="track-order.html">Track order</a><a href="cart.html">Cart</a><a href="checkout.html">Checkout</a><a href="shipping-policy.html">Shipping Policy</a><a href="returns-refunds.html">Returns & Refunds</a></div>
+      <div><h2>Tools</h2><a href="login.html">Login</a><a href="admin.html">Admin dashboard</a><a href="privacy-policy.html">Privacy Policy</a><a href="terms.html">Terms</a><a href="contact.html">Contact</a><a href="tel:+917678541041">+91 7678541041</a><a href="https://wa.me/917678541041">WhatsApp support</a><span>Mon-Sat 9:00 AM - 7:00 PM</span></div>
+    </footer>
+
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+    <script src="script.js"></script>
+  </body>
+</html>

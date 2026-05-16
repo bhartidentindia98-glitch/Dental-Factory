@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Products - Dental Factory</title>
+    <meta name="description" content="Shop dental equipment, consumables, endodontics, restoratives, implants, and clinic setup products." />
+    <link rel="preconnect" href="https://unpkg.com" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="announcement">
+        <span>Same day dispatch on 4,000+ clinic essentials</span>
+        <a href="index.html#clinic-setup">New clinic setup desk</a>
+      </div>
+
+      <div class="header-main">
+        <a class="brand" href="index.html" aria-label="Dental Factory home">
+          <span class="brand-mark"><i data-lucide="factory"></i></span>
+          <span>
+            <strong>Dental Factory</strong>
+            <small>Factory-direct dental supply</small>
+          </span>
+        </a>
+
+        <form class="delivery-box" id="deliveryForm">
+          <label for="pincode">Delivering to</label>
+          <div class="pin-control">
+            <i data-lucide="map-pin"></i>
+            <input id="pincode" inputmode="numeric" maxlength="6" placeholder="Enter pincode" />
+            <button type="submit" aria-label="Check delivery">
+              <i data-lucide="check"></i>
+            </button>
+          </div>
+        </form>
+
+        <label class="search-shell" for="siteSearch">
+          <i data-lucide="search"></i>
+          <input id="siteSearch" type="search" placeholder="Search catalog products" />
+        </label>
+
+        <div class="header-actions">
+          <a class="icon-action" id="loginButton" href="login.html" aria-label="Login">
+            <i data-lucide="user-round"></i>
+            <span>Login</span>
+          </a>
+          <a class="icon-action cart-button" id="cartButton" href="cart.html" aria-label="Open cart">
+            <i data-lucide="shopping-cart"></i>
+            <span>Cart</span>
+            <b id="cartCount">0</b>
+          </a>
+        </div>
+      </div>
+
+      <nav class="category-nav" aria-label="Primary categories">
+        <a class="nav-pill is-active" href="products.html">Category</a>
+        <a class="nav-pill" href="#brands">Brand</a>
+        <button class="nav-pill" data-filter="deals" type="button">Freebies</button>
+        <button class="nav-pill" data-filter="best" type="button">Best Sellers</button>
+        <a class="nav-pill" href="index.html#membership">Membership</a>
+        <a class="nav-pill" href="index.html#events">Events</a>
+        <a class="nav-pill" href="index.html#clinic-setup">New Clinic Setup</a>
+      </nav>
+    </header>
+
+    <main>
+      <section class="page-header">
+        <nav class="breadcrumb" aria-label="Breadcrumb">
+          <a href="index.html">Home</a>
+          <span>/</span>
+          <span>Products</span>
+        </nav>
+        <div>
+          <span class="eyebrow">Full catalog</span>
+          <h1>Shop dental products by category, brand, and clinic need</h1>
+          <p>Browse high-demand dental instruments, materials, equipment, sterilization supplies, and clinic setup products.</p>
+        </div>
+        <a class="primary-link" href="checkout.html">Send bulk enquiry</a>
+      </section>
+
+      <section class="catalog-layout" id="products">
+        <aside class="filter-panel" aria-label="Catalog filters">
+          <h2>Filters</h2>
+          <div class="filter-group">
+            <span>Category</span>
+            <button class="rail-item is-active" data-filter="all" type="button"><i data-lucide="layout-grid"></i> All products</button>
+            <button class="rail-item" data-filter="equipment" type="button"><i data-lucide="armchair"></i> Equipment</button>
+            <button class="rail-item" data-filter="rotary" type="button"><i data-lucide="rotate-cw"></i> Rotary</button>
+            <button class="rail-item" data-filter="restorative" type="button"><i data-lucide="sparkles"></i> Restoratives</button>
+            <button class="rail-item" data-filter="endo" type="button"><i data-lucide="activity"></i> Endodontics</button>
+            <button class="rail-item" data-filter="sterilization" type="button"><i data-lucide="shield-check"></i> Sterilization</button>
+            <button class="rail-item" data-filter="implants" type="button"><i data-lucide="wrench"></i> Implants</button>
+          </div>
+
+          <div class="filter-group" id="brands">
+            <span>Brand</span>
+            <div class="brand-filter">
+              <button type="button" data-brand="Waldent">Waldent</button>
+              <button type="button" data-brand="NSK">NSK</button>
+              <button type="button" data-brand="Dentsply">Dentsply</button>
+              <button type="button" data-brand="GC">GC</button>
+              <button type="button" data-brand="Woodpecker">Woodpecker</button>
+              <button type="button" data-brand="3M ESPE">3M ESPE</button>
+              <button type="button" data-brand="Orthometric">Orthometric</button>
+            </div>
+          </div>
+        </aside>
+
+        <section class="section-block product-section catalog-results">
+          <div class="section-heading">
+            <div>
+              <span class="eyebrow">Products</span>
+              <h2>Frequently ordered supplies</h2>
+            </div>
+            <div class="product-tools">
+              <select id="sortProducts" aria-label="Sort products">
+                <option value="featured">Featured</option>
+                <option value="price-low">Price: low to high</option>
+                <option value="price-high">Price: high to low</option>
+                <option value="rating">Rating</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="filter-status" id="filterStatus">Showing all products</div>
+
+          <div class="product-grid" id="productGrid">
+            <article class="product-card" data-name="Airotor Elite Handpiece" data-brand="Waldent" data-category="rotary equipment deals best" data-price="1899" data-rating="4.7">
+              <img src="assets/air-rotor.png" alt="Airotor Elite Handpiece" />
+              <div class="product-meta">
+                <span class="badge">18% off</span>
+                <h3>Airotor Elite Handpiece</h3>
+                <p>Push button cartridge, clean spray, ceramic bearings.</p>
+                <div class="rating"><i data-lucide="star"></i> 4.7 <span>1.2k orders</span></div>
+                <div class="price-row"><strong>Rs. 1,899</strong><small>Rs. 2,299</small></div>
+                <button class="add-cart" type="button" data-product="Airotor Elite Handpiece" data-price="1899"><i data-lucide="shopping-bag"></i> Add</button>
+              </div>
+            </article>
+
+            <article class="product-card" data-name="Universal Composite Syringe Kit" data-brand="3M ESPE" data-category="restorative deals best" data-price="1249" data-rating="4.8">
+              <img src="assets/composite-kit.png" alt="Universal Composite Syringe Kit" />
+              <div class="product-meta">
+                <span class="badge">Free applicators</span>
+                <h3>Universal Composite Syringe Kit</h3>
+                <p>Microhybrid restorative shades for daily anterior and posterior work.</p>
+                <div class="rating"><i data-lucide="star"></i> 4.8 <span>890 orders</span></div>
+                <div class="price-row"><strong>Rs. 1,249</strong><small>Rs. 1,650</small></div>
+                <button class="add-cart" type="button" data-product="Universal Composite Syringe Kit" data-price="1249"><i data-lucide="shopping-bag"></i> Add</button>
+              </div>
+            </article>
+
+            <article class="product-card" data-name="Endomotor X2 With Apex Mode" data-brand="Woodpecker" data-category="endo equipment best" data-price="7999" data-rating="4.6">
+              <img src="assets/endomotor.png" alt="Endomotor X2 With Apex Mode" />
+              <div class="product-meta">
+                <span class="badge">Clinic pick</span>
+                <h3>Endomotor X2 With Apex Mode</h3>
+                <p>Programmable torque, auto reverse, memory presets.</p>
+                <div class="rating"><i data-lucide="star"></i> 4.6 <span>540 orders</span></div>
+                <div class="price-row"><strong>Rs. 7,999</strong><small>Rs. 9,450</small></div>
+                <button class="add-cart" type="button" data-product="Endomotor X2 With Apex Mode" data-price="7999"><i data-lucide="shopping-bag"></i> Add</button>
+              </div>
+            </article>
+
+            <article class="product-card" data-name="Class B Autoclave 18L" data-brand="Waldent" data-category="sterilization equipment deals" data-price="42999" data-rating="4.5">
+              <img src="assets/autoclave.png" alt="Class B Autoclave 18L" />
+              <div class="product-meta">
+                <span class="badge">Installation support</span>
+                <h3>Class B Autoclave 18L</h3>
+                <p>Pre-vacuum cycles, printer-ready, tray set included.</p>
+                <div class="rating"><i data-lucide="star"></i> 4.5 <span>210 orders</span></div>
+                <div class="price-row"><strong>Rs. 42,999</strong><small>Rs. 49,999</small></div>
+                <button class="add-cart" type="button" data-product="Class B Autoclave 18L" data-price="42999"><i data-lucide="shopping-bag"></i> Add</button>
+              </div>
+            </article>
+
+            <article class="product-card" data-name="Implant Prosthetic Driver Kit" data-brand="Dentsply" data-category="implants best" data-price="3499" data-rating="4.4">
+              <img src="assets/implant-kit.png" alt="Implant Prosthetic Driver Kit" />
+              <div class="product-meta">
+                <span class="badge">New</span>
+                <h3>Implant Prosthetic Driver Kit</h3>
+                <p>Hex drivers and torque adapters organized for chairside use.</p>
+                <div class="rating"><i data-lucide="star"></i> 4.4 <span>320 orders</span></div>
+                <div class="price-row"><strong>Rs. 3,499</strong><small>Rs. 4,200</small></div>
+                <button class="add-cart" type="button" data-product="Implant Prosthetic Driver Kit" data-price="3499"><i data-lucide="shopping-bag"></i> Add</button>
+              </div>
+            </article>
+
+            <article class="product-card" data-name="Orthodontic Bracket Starter Kit" data-brand="Orthometric" data-category="ortho deals best" data-price="999" data-rating="4.3">
+              <img src="assets/bracket-kit.png" alt="Orthodontic Bracket Starter Kit" />
+              <div class="product-meta">
+                <span class="badge">Value pack</span>
+                <h3>Orthodontic Bracket Starter Kit</h3>
+                <p>Roth slot assortment with tubes, hooks, and labelled storage.</p>
+                <div class="rating"><i data-lucide="star"></i> 4.3 <span>760 orders</span></div>
+                <div class="price-row"><strong>Rs. 999</strong><small>Rs. 1,360</small></div>
+                <button class="add-cart" type="button" data-product="Orthodontic Bracket Starter Kit" data-price="999"><i data-lucide="shopping-bag"></i> Add</button>
+              </div>
+            </article>
+
+            <article class="product-card" data-name="Alginate Impression Material Pack" data-brand="GC" data-category="restorative deals" data-price="699" data-rating="4.2">
+              <img src="assets/impression-kit.png" alt="Alginate Impression Material Pack" />
+              <div class="product-meta">
+                <span class="badge">Bundle</span>
+                <h3>Alginate Impression Material Pack</h3>
+                <p>Fast set powder, measuring scoop, and tray adhesive sample.</p>
+                <div class="rating"><i data-lucide="star"></i> 4.2 <span>980 orders</span></div>
+                <div class="price-row"><strong>Rs. 699</strong><small>Rs. 920</small></div>
+                <button class="add-cart" type="button" data-product="Alginate Impression Material Pack" data-price="699"><i data-lucide="shopping-bag"></i> Add</button>
+              </div>
+            </article>
+
+            <article class="product-card" data-name="Clinic Chair Unit" data-brand="Waldent" data-category="equipment clinic" data-price="149999" data-rating="4.6">
+              <img src="assets/clinic-chair.png" alt="Clinic Chair Unit" />
+              <div class="product-meta">
+                <span class="badge">Quote assist</span>
+                <h3>Clinic Chair Unit</h3>
+                <p>Delivery, installation callback, and accessory checklist.</p>
+                <div class="rating"><i data-lucide="star"></i> 4.6 <span>95 orders</span></div>
+                <div class="price-row"><strong>Rs. 149,999</strong><small>Rs. 168,000</small></div>
+                <button class="add-cart" type="button" data-product="Clinic Chair Unit" data-price="149999"><i data-lucide="shopping-bag"></i> Add</button>
+              </div>
+            </article>
+
+            <article class="product-card" data-name="Apex Locator Pro" data-brand="Woodpecker" data-category="endo equipment best" data-price="5199" data-rating="4.5">
+              <img src="assets/endomotor.png" alt="Apex Locator Pro" />
+              <div class="product-meta">
+                <span class="badge">Hot deal</span>
+                <h3>Apex Locator Pro</h3>
+                <p>Compact apex measurement unit with clear chairside display.</p>
+                <div class="rating"><i data-lucide="star"></i> 4.5 <span>410 orders</span></div>
+                <div class="price-row"><strong>Rs. 5,199</strong><small>Rs. 6,250</small></div>
+                <button class="add-cart" type="button" data-product="Apex Locator Pro" data-price="5199"><i data-lucide="shopping-bag"></i> Add</button>
+              </div>
+            </article>
+
+            <article class="product-card" data-name="LED Curing Light" data-brand="NSK" data-category="restorative equipment deals" data-price="2899" data-rating="4.4">
+              <img src="assets/composite-kit.png" alt="LED Curing Light" />
+              <div class="product-meta">
+                <span class="badge">Free shield</span>
+                <h3>LED Curing Light</h3>
+                <p>Fast cure modes, rechargeable body, and protective eye shield.</p>
+                <div class="rating"><i data-lucide="star"></i> 4.4 <span>675 orders</span></div>
+                <div class="price-row"><strong>Rs. 2,899</strong><small>Rs. 3,600</small></div>
+                <button class="add-cart" type="button" data-product="LED Curing Light" data-price="2899"><i data-lucide="shopping-bag"></i> Add</button>
+              </div>
+            </article>
+
+            <article class="product-card" data-name="Disposable Dental Bibs Pack" data-brand="GC" data-category="sterilization clinic deals" data-price="349" data-rating="4.1">
+              <img src="assets/impression-kit.png" alt="Disposable Dental Bibs Pack" />
+              <div class="product-meta">
+                <span class="badge">Bulk saver</span>
+                <h3>Disposable Dental Bibs Pack</h3>
+                <p>Water-resistant patient bibs for daily operatory turnover.</p>
+                <div class="rating"><i data-lucide="star"></i> 4.1 <span>1.6k orders</span></div>
+                <div class="price-row"><strong>Rs. 349</strong><small>Rs. 520</small></div>
+                <button class="add-cart" type="button" data-product="Disposable Dental Bibs Pack" data-price="349"><i data-lucide="shopping-bag"></i> Add</button>
+              </div>
+            </article>
+
+            <article class="product-card" data-name="Surgical Suture Starter Set" data-brand="Dentsply" data-category="implants clinic best" data-price="1199" data-rating="4.3">
+              <img src="assets/implant-kit.png" alt="Surgical Suture Starter Set" />
+              <div class="product-meta">
+                <span class="badge">Starter set</span>
+                <h3>Surgical Suture Starter Set</h3>
+                <p>Assorted sterile sutures for implant and minor surgery cases.</p>
+                <div class="rating"><i data-lucide="star"></i> 4.3 <span>290 orders</span></div>
+                <div class="price-row"><strong>Rs. 1,199</strong><small>Rs. 1,540</small></div>
+                <button class="add-cart" type="button" data-product="Surgical Suture Starter Set" data-price="1199"><i data-lucide="shopping-bag"></i> Add</button>
+              </div>
+            </article>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <aside class="cart-drawer" id="cartDrawer" aria-label="Shopping cart" aria-hidden="true">
+      <div class="cart-panel">
+        <div class="cart-head">
+          <h2>Your cart</h2>
+          <button class="icon-only" id="closeCart" type="button" aria-label="Close cart"><i data-lucide="x"></i></button>
+        </div>
+        <div class="delivery-note" id="deliveryNote">Enter pincode to check delivery estimate.</div>
+        <div class="cart-lines" id="cartLines"></div>
+        <div class="cart-total">
+          <span>Subtotal</span>
+          <strong id="cartTotal">Rs. 0</strong>
+        </div>
+        <button class="checkout-button" id="checkoutButton" type="button">Proceed to checkout</button>
+      </div>
+    </aside>
+
+    <aside class="checkout-modal" id="checkoutModal" aria-label="Checkout" aria-hidden="true">
+      <form class="checkout-panel" id="checkoutForm">
+        <div class="cart-head">
+          <h2>Checkout</h2>
+          <button class="icon-only" id="closeCheckout" type="button" aria-label="Close checkout"><i data-lucide="x"></i></button>
+        </div>
+        <div class="checkout-summary" id="checkoutSummary"></div>
+        <label>Full name<input name="name" required placeholder="Dr. Praveen Sharma" /></label>
+        <label>Phone number<input name="phone" required inputmode="tel" placeholder="10 digit mobile number" /></label>
+        <label>Clinic address<textarea name="address" required placeholder="Clinic name, street, city, state"></textarea></label>
+        <label>Payment method<select name="payment"><option>Cash on delivery</option><option>UPI on delivery</option><option>Bank transfer</option></select></label>
+        <button class="checkout-button" type="submit">Place order request</button>
+        <p class="checkout-message" id="checkoutMessage" role="status"></p>
+      </form>
+    </aside>
+
+    <aside class="product-modal" id="productModal" aria-label="Product details" aria-hidden="true">
+      <div class="product-panel">
+        <div class="cart-head product-panel-head">
+          <h2 id="detailTitle">Product details</h2>
+          <button class="icon-only" id="closeProduct" type="button" aria-label="Close product details"><i data-lucide="x"></i></button>
+        </div>
+        <div class="product-detail-layout">
+          <div class="detail-media"><img id="detailImage" src="assets/air-rotor.png" alt="" /></div>
+          <div class="detail-content">
+            <span class="badge" id="detailBadge">Best seller</span>
+            <div class="detail-rating" id="detailRating"></div>
+            <p id="detailDescription"></p>
+            <div class="detail-price"><strong id="detailPrice">Rs. 0</strong><small id="detailMrp"></small></div>
+            <div class="detail-stock"><i data-lucide="truck"></i><span id="detailDelivery">Usually dispatched in 24 hours</span></div>
+            <div class="detail-specs" id="detailSpecs"></div>
+            <div class="detail-actions">
+              <button class="add-cart" id="detailAddCart" type="button"><i data-lucide="shopping-bag"></i> Add to cart</button>
+              <button class="checkout-button" id="detailBuyNow" type="button">Buy now</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <footer class="site-footer" id="contact">
+      <div>
+        <strong>Dental Factory</strong>
+        <p>Clinic supplies, factory-direct confidence.</p>
+      </div>
+      <div>
+        <h2>Shop</h2>
+        <a href="products.html">All products</a>
+        <a href="product-detail.html">Featured product</a>
+        <a href="index.html#clinic-setup">Clinic setup</a>
+      </div>
+      <div>
+        <h2>Help</h2>
+        <a href="track-order.html">Track order</a>
+        <a href="cart.html">Cart</a>
+        <a href="checkout.html">Checkout</a>
+        <a href="shipping-policy.html">Shipping Policy</a>
+        <a href="returns-refunds.html">Returns & Refunds</a>
+      </div>
+      <div>
+        <h2>Tools</h2>
+        <a href="login.html">Login</a>
+        <a href="admin.html">Admin dashboard</a>
+        <a href="privacy-policy.html">Privacy Policy</a>
+        <a href="terms.html">Terms</a>
+        <a href="contact.html">Contact</a>
+        <a href="tel:+917678541041">+91 7678541041</a><a href="https://wa.me/917678541041">WhatsApp support</a><span>Mon-Sat 9:00 AM - 7:00 PM</span>
+        <span>Warehouses: Delhi, Mumbai, Chennai</span>
+      </div>
+    </footer>
+
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+    <script src="script.js"></script>
+  </body>
+</html>

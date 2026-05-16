@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Endomotor X2 With Apex Mode - Dental Factory</title>
+    <meta name="description" content="Product detail page for a dental endomotor with apex mode, torque presets, and clinic purchase support." />
+    <link rel="preconnect" href="https://unpkg.com" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="announcement">
+        <span>Same day dispatch on 4,000+ clinic essentials</span>
+        <a href="index.html#clinic-setup">New clinic setup desk</a>
+      </div>
+
+      <div class="header-main">
+        <a class="brand" href="index.html" aria-label="Dental Factory home">
+          <span class="brand-mark"><i data-lucide="factory"></i></span>
+          <span><strong>Dental Factory</strong><small>Factory-direct dental supply</small></span>
+        </a>
+
+        <form class="delivery-box" id="deliveryForm">
+          <label for="pincode">Delivering to</label>
+          <div class="pin-control">
+            <i data-lucide="map-pin"></i>
+            <input id="pincode" inputmode="numeric" maxlength="6" placeholder="Enter pincode" />
+            <button type="submit" aria-label="Check delivery"><i data-lucide="check"></i></button>
+          </div>
+        </form>
+
+        <label class="search-shell" for="siteSearch">
+          <i data-lucide="search"></i>
+          <input id="siteSearch" type="search" placeholder="Search over 20,000 dental products" />
+        </label>
+
+        <div class="header-actions">
+          <a class="icon-action" id="loginButton" href="login.html" aria-label="Login"><i data-lucide="user-round"></i><span>Login</span></a>
+          <a class="icon-action cart-button" id="cartButton" href="cart.html" aria-label="Open cart">
+            <i data-lucide="shopping-cart"></i><span>Cart</span><b id="cartCount">0</b>
+          </a>
+        </div>
+      </div>
+
+      <nav class="category-nav" aria-label="Primary categories">
+        <a class="nav-pill" href="products.html">Category</a>
+        <a class="nav-pill" href="products.html#brands">Brand</a>
+        <a class="nav-pill" href="products.html">Freebies</a>
+        <a class="nav-pill is-active" href="products.html">Best Sellers</a>
+        <a class="nav-pill" href="index.html#membership">Membership</a>
+        <a class="nav-pill" href="index.html#events">Events</a>
+        <a class="nav-pill" href="index.html#clinic-setup">New Clinic Setup</a>
+      </nav>
+    </header>
+
+    <main>
+      <section class="page-header compact-page-header">
+        <nav class="breadcrumb" aria-label="Breadcrumb">
+          <a href="index.html">Home</a>
+          <span>/</span>
+          <a href="products.html">Products</a>
+          <span>/</span>
+          <span>Endomotor X2</span>
+        </nav>
+      </section>
+
+      <section class="detail-page">
+        <div class="detail-gallery">
+          <img data-gallery-main src="assets/endomotor.png" alt="Endomotor X2 With Apex Mode" />
+          <div class="thumbnail-row" aria-label="Product gallery">
+            <button class="is-active" type="button" aria-label="Main product view"><img src="assets/endomotor.png" alt="" /></button>
+            <button type="button" aria-label="Kit view"><img src="assets/air-rotor.png" alt="" /></button>
+            <button type="button" aria-label="Clinic setup view"><img src="assets/clinic-chair.png" alt="" /></button>
+          </div>
+        </div>
+
+        <article class="purchase-panel">
+          <span class="badge">Clinic pick</span>
+          <h1>Endomotor X2 With Apex Mode</h1>
+          <p>Programmable torque, auto reverse, memory presets, and apex mode for daily endodontic procedures.</p>
+          <div class="detail-rating"><i data-lucide="star"></i> 4.6 <span>540 orders</span></div>
+          <div class="detail-price"><strong>Rs. 7,999</strong><small>Rs. 9,450</small></div>
+          <div class="detail-stock"><i data-lucide="truck"></i><span>Priority dispatch with setup callback</span></div>
+          <div class="detail-specs">
+            <div><span>Brand</span><strong>Woodpecker</strong></div>
+            <div><span>Modes</span><strong>Auto reverse</strong></div>
+            <div><span>Memory</span><strong>9 presets</strong></div>
+            <div><span>Warranty</span><strong>1 year</strong></div>
+          </div>
+          <div class="detail-actions">
+            <button class="add-cart" type="button" data-product="Endomotor X2 With Apex Mode" data-price="7999">
+              <i data-lucide="shopping-bag"></i> Add to cart
+            </button>
+            <button class="checkout-button" data-buy-now type="button" data-product="Endomotor X2 With Apex Mode" data-price="7999">Buy now</button>
+          </div>
+        </article>
+      </section>
+
+      <section class="section-block">
+        <div class="section-heading">
+          <div>
+            <span class="eyebrow">Product details</span>
+            <h2>What is included</h2>
+          </div>
+        </div>
+        <div class="info-tabs">
+          <article>
+            <h3>Clinical use</h3>
+            <p>Designed for rotary endodontics with torque presets, auto reverse, and a compact handpiece for daily chairside use.</p>
+          </article>
+          <article>
+            <h3>Service support</h3>
+            <p>Includes invoice support, warranty callback, and purchase assistance for compatible file systems.</p>
+          </article>
+          <article>
+            <h3>Recommended add-ons</h3>
+            <p>Pair with apex locator, rotary files, rubber dam kit, irrigation needles, and sterilization pouches.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="section-block product-section">
+        <div class="section-heading">
+          <div>
+            <span class="eyebrow">Related</span>
+            <h2>Often bought together</h2>
+          </div>
+          <a href="products.html">View all</a>
+        </div>
+        <div class="product-grid related-grid" id="productGrid">
+          <article class="product-card" data-name="Apex Locator Pro" data-brand="Woodpecker" data-category="endo equipment best" data-price="5199" data-rating="4.5">
+            <img src="assets/endomotor.png" alt="Apex Locator Pro" />
+            <div class="product-meta">
+              <span class="badge">Hot deal</span>
+              <h3>Apex Locator Pro</h3>
+              <p>Compact apex measurement unit with clear chairside display.</p>
+              <div class="rating"><i data-lucide="star"></i> 4.5 <span>410 orders</span></div>
+              <div class="price-row"><strong>Rs. 5,199</strong><small>Rs. 6,250</small></div>
+              <button class="add-cart" type="button" data-product="Apex Locator Pro" data-price="5199"><i data-lucide="shopping-bag"></i> Add</button>
+            </div>
+          </article>
+          <article class="product-card" data-name="Class B Autoclave 18L" data-brand="Waldent" data-category="sterilization equipment deals" data-price="42999" data-rating="4.5">
+            <img src="assets/autoclave.png" alt="Class B Autoclave 18L" />
+            <div class="product-meta">
+              <span class="badge">Installation support</span>
+              <h3>Class B Autoclave 18L</h3>
+              <p>Pre-vacuum cycles, printer-ready, tray set included.</p>
+              <div class="rating"><i data-lucide="star"></i> 4.5 <span>210 orders</span></div>
+              <div class="price-row"><strong>Rs. 42,999</strong><small>Rs. 49,999</small></div>
+              <button class="add-cart" type="button" data-product="Class B Autoclave 18L" data-price="42999"><i data-lucide="shopping-bag"></i> Add</button>
+            </div>
+          </article>
+          <article class="product-card" data-name="Disposable Dental Bibs Pack" data-brand="GC" data-category="sterilization clinic deals" data-price="349" data-rating="4.1">
+            <img src="assets/impression-kit.png" alt="Disposable Dental Bibs Pack" />
+            <div class="product-meta">
+              <span class="badge">Bulk saver</span>
+              <h3>Disposable Dental Bibs Pack</h3>
+              <p>Water-resistant patient bibs for daily operatory turnover.</p>
+              <div class="rating"><i data-lucide="star"></i> 4.1 <span>1.6k orders</span></div>
+              <div class="price-row"><strong>Rs. 349</strong><small>Rs. 520</small></div>
+              <button class="add-cart" type="button" data-product="Disposable Dental Bibs Pack" data-price="349"><i data-lucide="shopping-bag"></i> Add</button>
+            </div>
+          </article>
+        </div>
+      </section>
+    </main>
+
+    <aside class="cart-drawer" id="cartDrawer" aria-label="Shopping cart" aria-hidden="true">
+      <div class="cart-panel">
+        <div class="cart-head">
+          <h2>Your cart</h2>
+          <button class="icon-only" id="closeCart" type="button" aria-label="Close cart"><i data-lucide="x"></i></button>
+        </div>
+        <div class="delivery-note" id="deliveryNote">Enter pincode to check delivery estimate.</div>
+        <div class="cart-lines" id="cartLines"></div>
+        <div class="cart-total"><span>Subtotal</span><strong id="cartTotal">Rs. 0</strong></div>
+        <button class="checkout-button" id="checkoutButton" type="button">Proceed to checkout</button>
+      </div>
+    </aside>
+
+    <footer class="site-footer" id="contact">
+      <div><strong>Dental Factory</strong><p>Clinic supplies, factory-direct confidence.</p></div>
+      <div><h2>Shop</h2><a href="products.html">All products</a><a href="product-detail.html">Featured product</a><a href="index.html#clinic-setup">Clinic setup</a></div>
+      <div><h2>Help</h2><a href="track-order.html">Track order</a><a href="cart.html">Cart</a><a href="checkout.html">Checkout</a><a href="shipping-policy.html">Shipping Policy</a><a href="returns-refunds.html">Returns & Refunds</a></div>
+      <div><h2>Tools</h2><a href="login.html">Login</a><a href="admin.html">Admin dashboard</a><a href="privacy-policy.html">Privacy Policy</a><a href="terms.html">Terms</a><a href="contact.html">Contact</a><a href="tel:+917678541041">+91 7678541041</a><a href="https://wa.me/917678541041">WhatsApp support</a><span>Mon-Sat 9:00 AM - 7:00 PM</span></div>
+    </footer>
+
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+    <script src="script.js"></script>
+  </body>
+</html>
