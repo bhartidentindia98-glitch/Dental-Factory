@@ -1358,12 +1358,20 @@ function hideProductDetails() {
 }
 
 function openAccount(event) {
-  if (!accountModal) return;
   event?.preventDefault();
+
+  const savedAccount = loadCustomerAccount();
+
+  if (savedAccount && (savedAccount.clinic || savedAccount.name || savedAccount.phone)) {
+    return;
+  }
+
+  if (!accountModal) return;
   if (accountMessage) accountMessage.textContent = "";
   hydrateAccountForms();
   accountModal.classList.add("is-open");
   accountModal.setAttribute("aria-hidden", "false");
+}
 }
 
 function hideAccount() {
