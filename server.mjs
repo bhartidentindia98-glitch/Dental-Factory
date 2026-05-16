@@ -14,6 +14,11 @@ const sessionSecret = process.env.SESSION_SECRET || "dental-factory-local-sessio
 const razorpayKeyId = process.env.RAZORPAY_KEY_ID || "";
 const razorpayKeySecret = process.env.RAZORPAY_KEY_SECRET || "";
 const paymentCurrency = String(process.env.PAYMENT_CURRENCY || "INR").toUpperCase();
+const cashOnDeliveryMethod = "Cash on delivery";
+const freeShippingThreshold = 2999;
+const standardShippingFee = 99;
+const cashCodLimit = 20000;
+const freightConfirmationLimit = 25000;
 const dataDir = path.resolve(process.env.DATA_DIR || path.join(rootDir, "data"));
 const productsFile = path.join(dataDir, "products.json");
 const ordersFile = path.join(dataDir, "orders.json");
@@ -262,11 +267,22 @@ function normalizePayment(payment) {
   };
 }
 
+function normalizeShipping(shipping) {
+  return {
+    charge: Number(shipping?.charge || 0),
+    label: String(shipping?.label || "").trim(),
+    note: String(shipping?.note || "").trim(),
+    requiresCallback: Boolean(shipping?.requiresCallback),
+  };
+}
+
 function safeOrder(order) {
   return {
     id: order.id,
     customer: normalizeOrderCustomer(order.customer),
     items: Array.isArray(order.items) ? order.items.map(normalizeOrderItem).filter((item) => item.name) : [],
+    subtotal: Number(order.subtotal || order.total || 0),
+    shipping: normalizeShipping(order.shipping),
     total: Number(order.total || 0),
     status: String(order.status || "Request received"),
     payment: normalizePayment(order.payment || { method: order.customer?.payment || "Cash on delivery", status: "Pending" }),
@@ -376,21 +392,60 @@ async function checkoutPayloadFromBody(body) {
   const customer = normalizeOrderCustomer(body.customer || {});
   const submittedItems = Array.isArray(body.items) ? body.items.map(normalizeOrderItem).filter((item) => item.name) : [];
   const catalog = (await readJson(productsFile, [])).map(normalizeProduct);
-  const pricesByName = new Map(catalog.map((product) => [product.name.toLowerCase(), product.price]));
+  const productsByName = new Map(catalog.map((product) => [product.name.toLowerCase(), product]));
   const items = submittedItems.map((item) => {
-    const catalogPrice = pricesByName.get(item.name.toLowerCase());
-    return { ...item, price: catalogPrice || item.price };
+    const catalogProduct = productsByName.get(item.name.toLowerCase());
+    return {
+      ...item,
+      price: catalogProduct?.price || item.price,
+      category: String(catalogProduct?.category || "").toLowerCase(),
+    };
   });
-  const total = items.reduce((sum, item) => sum + item.price * item.qty, 0);
-  return { customer, items, total };
+  const subtotal = items.reduce((sum, item) => sum + item.price * item.qty, 0);
+  const requiresFreightConfirmation =
+    subtotal >= freightConfirmationLimit ||
+    items.some((item) => {
+      const lineTotal = item.price * item.qty;
+      return (
+        item.category.includes("equipment") ||
+        item.category.includes("clinic") ||
+        lineTotal >= 10000 ||
+        /autoclave|chair|compressor|x-?ray|scanner|sensor|equipment|installation/i.test(item.name)
+      );
+    });
+  const shipping = requiresFreightConfirmation
+    ? {
+        charge: 0,
+        label: "To be confirmed",
+        note: "Bulky equipment, high-value, or clinic setup freight is confirmed during callback.",
+        requiresCallback: true,
+      }
+    : subtotal >= freeShippingThreshold
+      ? {
+          charge: 0,
+          label: "Free",
+          note: `Free shipping above Rs. ${freeShippingThreshold.toLocaleString("en-IN")}.`,
+          requiresCallback: false,
+        }
+      : {
+          charge: standardShippingFee,
+          label: `Rs. ${standardShippingFee.toLocaleString("en-IN")}`,
+          note: `Standard shipping applies below Rs. ${freeShippingThreshold.toLocaleString("en-IN")}.`,
+          requiresCallback: false,
+        };
+  const total = subtotal + shipping.charge;
+  return { customer, items: items.map(({ category, ...item }) => item), subtotal, shipping, total, requiresFreightConfirmation };
 }
 
-function checkoutValidationError({ customer, items, total }) {
+function checkoutValidationError({ customer, items, subtotal, total, requiresFreightConfirmation }) {
   if (!customer.name || normalizePhone(customer.phone).length < 10 || !customer.address) {
     return "Customer name, 10 digit phone number, and address are required";
   }
   if (!items.length || total <= 0) {
     return "Add at least one product before placing an order";
+  }
+  if (customer.payment === cashOnDeliveryMethod && (requiresFreightConfirmation || subtotal > cashCodLimit)) {
+    return `Cash on delivery is available only for standard orders up to Rs. ${cashCodLimit.toLocaleString("en-IN")}`;
   }
   return "";
 }
@@ -505,7 +560,10 @@ async function handleApi(req, res, reqUrl) {
       receipt: razorpayOrder.receipt,
       customer: payload.customer,
       items: payload.items,
+      subtotal: payload.subtotal,
+      shipping: payload.shipping,
       total: payload.total,
+      requiresFreightConfirmation: payload.requiresFreightConfirmation,
       amount: razorpayOrder.amount,
       currency: razorpayOrder.currency || paymentCurrency,
       status: "created",
@@ -518,6 +576,8 @@ async function handleApi(req, res, reqUrl) {
       amount: razorpayOrder.amount,
       currency: razorpayOrder.currency || paymentCurrency,
       receipt: razorpayOrder.receipt,
+      subtotal: payload.subtotal,
+      shipping: payload.shipping,
       total: payload.total,
       customer: payload.customer,
       items: payload.items,
@@ -544,7 +604,10 @@ async function handleApi(req, res, reqUrl) {
     const payload = {
       customer: normalizeOrderCustomer(attempt.customer),
       items: Array.isArray(attempt.items) ? attempt.items.map(normalizeOrderItem).filter((item) => item.name) : [],
+      subtotal: Number(attempt.subtotal || attempt.total || 0),
+      shipping: normalizeShipping(attempt.shipping),
       total: Number(attempt.total || 0),
+      requiresFreightConfirmation: Boolean(attempt.requiresFreightConfirmation || attempt.shipping?.requiresCallback),
     };
     const error = checkoutValidationError(payload);
     if (error) {
@@ -568,6 +631,8 @@ async function handleApi(req, res, reqUrl) {
       id: `DF-${String(Date.now()).slice(-6)}`,
       customer: { ...payload.customer, payment: "Online payment (Razorpay)" },
       items: payload.items,
+      subtotal: payload.subtotal,
+      shipping: payload.shipping,
       total: payload.total,
       status: "Paid - callback pending",
       payment: {
@@ -674,8 +739,9 @@ async function handleApi(req, res, reqUrl) {
   if (reqUrl.pathname === "/api/orders" && req.method === "POST") {
     const body = await readRequestJson(req);
     const orders = await readJson(ordersFile, []);
-    const { customer, items, total } = await checkoutPayloadFromBody(body);
-    const error = checkoutValidationError({ customer, items, total });
+    const payload = await checkoutPayloadFromBody(body);
+    const { customer, items, subtotal, shipping, total } = payload;
+    const error = checkoutValidationError(payload);
 
     if (error) {
       sendJson(res, 400, { error });
@@ -686,6 +752,8 @@ async function handleApi(req, res, reqUrl) {
       id: `DF-${String(Date.now()).slice(-6)}`,
       customer,
       items,
+      subtotal,
+      shipping,
       total,
       status: "Request received",
       payment: {

@@ -2142,6 +2142,26 @@ main {
   gap: 12px;
 }
 
+.checkout-summary .summary-row {
+  margin-top: 8px;
+}
+
+.summary-note,
+.shipping-rule-note {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.shipping-rule-note {
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  color: var(--sea-dark);
+  background: rgba(15, 139, 141, 0.09);
+  font-weight: 700;
+}
+
 .checkout-panel label,
 .account-panel label {
   display: grid;

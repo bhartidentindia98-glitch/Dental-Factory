@@ -87,7 +87,13 @@ const ADMIN_LOGIN_API = "/api/admin/login";
 const ADMIN_LOGOUT_API = "/api/admin/logout";
 const CUSTOMER_ACCOUNT_KEY = "dentalFactoryCustomerAccount";
 const DELIVERY_PIN_KEY = "dentalFactoryDeliveryPin";
+const CASH_ON_DELIVERY_METHOD = "Cash on delivery";
+const PINE_LABS_PAYMENT_METHOD = "Card swipe on delivery (Pine Labs)";
 const ONLINE_PAYMENT_METHOD = "Online payment (Razorpay)";
+const FREE_SHIPPING_THRESHOLD = 2999;
+const STANDARD_SHIPPING_FEE = 99;
+const CASH_COD_LIMIT = 20000;
+const FREIGHT_CONFIRMATION_LIMIT = 25000;
 let paymentConfig = { razorpayEnabled: false, keyId: "", currency: "INR", businessName: "Dental Factory" };
 
 const productDetails = {
@@ -403,21 +409,21 @@ function checkoutCustomerFromForm(form) {
 }
 
 async function saveBackendOrder(customer) {
+  const payload = checkoutPayload(customer);
   return apiJson(ORDERS_API, {
     method: "POST",
-    body: JSON.stringify({
-      customer,
-      items: cartItemsForBackend(),
-      total: getCartTotal(),
-    }),
+    body: JSON.stringify(payload),
   });
 }
 
 function checkoutPayload(customer) {
+  const summary = getOrderSummary();
   return {
     customer,
     items: cartItemsForBackend(),
-    total: getCartTotal(),
+    subtotal: summary.subtotal,
+    shipping: summary.shipping,
+    total: summary.total,
   };
 }
 
@@ -433,15 +439,29 @@ async function loadPaymentConfig() {
 
 function updatePaymentOptions() {
   $$('select[name="payment"]').forEach((select) => {
+    const codOption = Array.from(select.options).find((option) => option.value === CASH_ON_DELIVERY_METHOD || option.textContent.trim() === CASH_ON_DELIVERY_METHOD);
+    if (codOption) {
+      codOption.value = CASH_ON_DELIVERY_METHOD;
+      codOption.disabled = !isCashCodEligible();
+      codOption.textContent = isCashCodEligible() ? CASH_ON_DELIVERY_METHOD : "Cash on delivery (not available for this order)";
+    }
+
+    if (!Array.from(select.options).some((option) => option.value === PINE_LABS_PAYMENT_METHOD)) {
+      const pineLabsOption = new Option(PINE_LABS_PAYMENT_METHOD, PINE_LABS_PAYMENT_METHOD);
+      if (codOption?.nextSibling) select.insertBefore(pineLabsOption, codOption.nextSibling);
+      else select.add(pineLabsOption, select.options[1] || null);
+    }
+
     const onlineOption = Array.from(select.options).find((option) => option.value === ONLINE_PAYMENT_METHOD);
     if (!onlineOption) return;
     onlineOption.disabled = !paymentConfig.razorpayEnabled;
     onlineOption.textContent = paymentConfig.razorpayEnabled ? "Pay online now (Razorpay)" : "Pay online now (Razorpay - setup pending)";
+    if (select.selectedOptions[0]?.disabled) {
+      select.value = PINE_LABS_PAYMENT_METHOD;
+    }
   });
   $$(".payment-note").forEach((note) => {
-    note.textContent = paymentConfig.razorpayEnabled
-      ? "Online payment is active. Razorpay will open securely after you submit."
-      : "Online payment will activate after Razorpay keys are added in Render. COD, UPI on delivery, and bank transfer still work.";
+    note.textContent = paymentRuleNote();
   });
 }
 
@@ -849,12 +869,87 @@ function getCartCount() {
   return count;
 }
 
-function getCartTotal() {
-  let total = 0;
+function getCartSubtotal() {
+  let subtotal = 0;
   cart.forEach((item) => {
-    total += item.price * item.qty;
+    subtotal += item.price * item.qty;
   });
-  return total;
+  return subtotal;
+}
+
+function getCartItemCategory(name) {
+  refreshProductCards();
+  const card = productCards.find((item) => item.dataset.name === name);
+  if (card?.dataset.category) return card.dataset.category.toLowerCase();
+  const product = getCatalogProduct(name);
+  return String(product.category || product.description || "").toLowerCase();
+}
+
+function cartRequiresFreightConfirmation() {
+  const subtotal = getCartSubtotal();
+  if (subtotal >= FREIGHT_CONFIRMATION_LIMIT) return true;
+  return Array.from(cart, ([name, item]) => {
+    const category = getCartItemCategory(name);
+    const lineTotal = Number(item.price || 0) * Number(item.qty || 0);
+    return (
+      category.includes("equipment") ||
+      category.includes("clinic") ||
+      lineTotal >= 10000 ||
+      /autoclave|chair|compressor|x-?ray|scanner|sensor|equipment|installation/i.test(name)
+    );
+  }).some(Boolean);
+}
+
+function getShippingDetails() {
+  const subtotal = getCartSubtotal();
+  if (cart.size === 0) {
+    return { charge: 0, label: "Rs. 0", note: "Add products to calculate shipping.", requiresCallback: false };
+  }
+  if (cartRequiresFreightConfirmation()) {
+    return {
+      charge: 0,
+      label: "To be confirmed",
+      note: "Bulky equipment, high-value, or clinic setup freight is confirmed during callback.",
+      requiresCallback: true,
+    };
+  }
+  if (subtotal >= FREE_SHIPPING_THRESHOLD) {
+    return { charge: 0, label: "Free", note: `Free shipping above ${formatMoney(FREE_SHIPPING_THRESHOLD)}.`, requiresCallback: false };
+  }
+  return {
+    charge: STANDARD_SHIPPING_FEE,
+    label: formatMoney(STANDARD_SHIPPING_FEE),
+    note: `Standard shipping applies below ${formatMoney(FREE_SHIPPING_THRESHOLD)}.`,
+    requiresCallback: false,
+  };
+}
+
+function getOrderSummary() {
+  const subtotal = getCartSubtotal();
+  const shipping = getShippingDetails();
+  return {
+    subtotal,
+    shipping,
+    total: subtotal + shipping.charge,
+  };
+}
+
+function getCartTotal() {
+  return getOrderSummary().total;
+}
+
+function isCashCodEligible() {
+  return cart.size > 0 && getCartSubtotal() <= CASH_COD_LIMIT && !cartRequiresFreightConfirmation();
+}
+
+function paymentRuleNote() {
+  const codNote = isCashCodEligible()
+    ? `Cash COD is available up to ${formatMoney(CASH_COD_LIMIT)} for standard orders.`
+    : `Cash COD is disabled for equipment, clinic setup, bulky freight, or orders above ${formatMoney(CASH_COD_LIMIT)}.`;
+  const onlineNote = paymentConfig.razorpayEnabled
+    ? "Online Razorpay payment is active."
+    : "Online Razorpay payment will activate after live keys are added.";
+  return `${codNote} Pine Labs card swipe, UPI on delivery, and bank transfer remain available after confirmation. ${onlineNote}`;
 }
 
 function updateCartBadges() {
@@ -877,6 +972,19 @@ function showToast(message) {
   toast.classList.add("is-visible");
   window.clearTimeout(showToast.timer);
   showToast.timer = window.setTimeout(() => toast.classList.remove("is-visible"), 1800);
+}
+
+function upsertOrderRuleNote(anchor, summary = getOrderSummary()) {
+  if (!anchor?.parentElement) return;
+  let note = anchor.parentElement.querySelector(".shipping-rule-note");
+  if (!note) {
+    note = document.createElement("p");
+    note.className = "shipping-rule-note";
+    anchor.after(note);
+  }
+  note.textContent = `${summary.shipping.note} ${
+    isCashCodEligible() ? "Cash COD available for this cart." : "Choose Pine Labs card swipe, UPI, bank transfer, or online payment for this cart."
+  }`;
 }
 
 function renderCartDrawer() {
@@ -908,7 +1016,12 @@ function renderCartDrawer() {
   });
 
   if (cartTotal) {
-    cartTotal.textContent = formatMoney(getCartTotal());
+    const summary = getOrderSummary();
+    cartTotal.textContent = formatMoney(summary.total);
+    const label = cartTotal.previousElementSibling;
+    if (label) label.textContent = "Total estimate";
+    const anchor = cartTotal.closest(".cart-total");
+    upsertOrderRuleNote(anchor, summary);
   }
 }
 
@@ -941,7 +1054,27 @@ function renderCartPage() {
   });
 
   if (cartPageTotal) {
-    cartPageTotal.textContent = formatMoney(getCartTotal());
+    const summary = getOrderSummary();
+    cartPageTotal.textContent = formatMoney(summary.subtotal);
+    const summaryCard = cartPageTotal.closest(".summary-card");
+    if (summaryCard) {
+      let shippingRow = summaryCard.querySelector(".cart-shipping-row");
+      if (!shippingRow) {
+        shippingRow = document.createElement("div");
+        shippingRow.className = "summary-row cart-shipping-row";
+        cartPageTotal.closest(".summary-row")?.after(shippingRow);
+      }
+      shippingRow.innerHTML = `<span>Shipping</span><strong>${summary.shipping.label}</strong>`;
+
+      let grandRow = summaryCard.querySelector(".cart-grand-row");
+      if (!grandRow) {
+        grandRow = document.createElement("div");
+        grandRow.className = "summary-row cart-grand-row";
+        shippingRow.after(grandRow);
+      }
+      grandRow.innerHTML = `<span>Total estimate</span><strong>${formatMoney(summary.total)}</strong>`;
+      upsertOrderRuleNote(grandRow, summary);
+    }
   }
 }
 
@@ -962,9 +1095,27 @@ function renderSummary(target) {
     target.appendChild(row);
   });
 
+  const summary = getOrderSummary();
+  const subtotal = document.createElement("div");
+  subtotal.className = "summary-row";
+  subtotal.innerHTML = `<span>Subtotal</span><b>${formatMoney(summary.subtotal)}</b>`;
+  target.appendChild(subtotal);
+
+  const shipping = document.createElement("div");
+  shipping.className = "summary-row";
+  shipping.innerHTML = `<span>Shipping</span><b>${summary.shipping.label}</b>`;
+  target.appendChild(shipping);
+
   const total = document.createElement("strong");
-  total.innerHTML = `<span>Total estimate</span><b>${formatMoney(getCartTotal())}</b>`;
+  total.innerHTML = `<span>Total estimate</span><b>${formatMoney(summary.total)}</b>`;
   target.appendChild(total);
+
+  const note = document.createElement("p");
+  note.className = "summary-note";
+  note.textContent = `${summary.shipping.note} ${
+    isCashCodEligible() ? "Cash COD is available for this cart." : "Cash COD is unavailable for this cart; Pine Labs card swipe is available after confirmation."
+  }`;
+  target.appendChild(note);
 }
 
 function renderCart() {
@@ -973,6 +1124,7 @@ function renderCart() {
   renderCartDrawer();
   renderCartPage();
   renderSummary(checkoutPageSummary);
+  updatePaymentOptions();
 }
 
 function addToCart(name, price, options = {}) {
@@ -1704,6 +1856,12 @@ async function submitCheckoutForm(event, messageNode, summaryNode) {
 
   if (!customer.name || phoneDigits.length !== 10 || !customer.address) {
     if (messageNode) messageNode.textContent = "Enter name, 10 digit mobile number, and delivery address.";
+    return;
+  }
+
+  if (customer.payment === CASH_ON_DELIVERY_METHOD && !isCashCodEligible()) {
+    if (messageNode) messageNode.textContent = `Cash COD is available only for standard orders up to ${formatMoney(CASH_COD_LIMIT)}. Choose Pine Labs card swipe, UPI, bank transfer, or online payment.`;
+    updatePaymentOptions();
     return;
   }
 

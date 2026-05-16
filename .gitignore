@@ -1,5 +1,6 @@
 node_modules/
 .env
+data/payment-attempts.json
 *.log
 server-*.log
 server-*.err
