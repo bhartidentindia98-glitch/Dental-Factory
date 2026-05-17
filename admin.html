@@ -8,7 +8,7 @@
     <link rel="canonical" href="https://bhartidentindia.com/admin.html" />
     <meta name="robots" content="noindex, follow" />
     <link rel="preconnect" href="https://unpkg.com" />
-    <link rel="stylesheet" href="styles.css?v=20260517-logo" />
+    <link rel="stylesheet" href="styles.css?v=20260517-brands" />
     <link rel="icon" href="assets/dental-factory-logo-mark.png?v=20260517-logo" />
   </head>
   <body>
@@ -35,6 +35,7 @@
 
       <nav class="category-nav" aria-label="Admin navigation" hidden>
         <a class="nav-pill is-active" href="#overview">Overview</a>
+        <a class="nav-pill" href="#brands-admin">Brands</a>
         <a class="nav-pill" href="#products-admin">Products</a>
         <a class="nav-pill" href="#orders">Orders</a>
         <a class="nav-pill" href="#inventory">Inventory</a>
@@ -84,6 +85,48 @@
       <section class="admin-storage-notice" id="adminStorageNotice" hidden></section>
 
       <section class="admin-grid">
+        <article class="admin-card wide-card" id="brands-admin">
+          <div class="section-heading">
+            <div><span class="eyebrow">Brands</span><h2>Add / edit brands</h2></div>
+            <button class="text-link" id="resetBrandForm" type="button">New brand</button>
+          </div>
+          <div class="product-admin-layout brand-admin-layout">
+            <form class="product-admin-form" id="brandAdminForm" autocomplete="off">
+              <input type="hidden" name="editing" />
+              <label>
+                Brand name
+                <input name="name" required autocomplete="off" />
+              </label>
+              <label>
+                Logo URL or file name
+                <input name="logo" autocomplete="off" />
+              </label>
+              <label class="full-field">
+                Brand description
+                <textarea name="description" autocomplete="off" placeholder="Short line for the public brands page"></textarea>
+              </label>
+              <label class="checkbox-field full-field">
+                <input name="featured" type="checkbox" checked />
+                Show on brands page and filters
+              </label>
+              <div class="form-actions full-field">
+                <button class="checkout-button" type="submit">Save brand</button>
+                <button class="secondary-link" id="clearBrandForm" type="button">Clear</button>
+              </div>
+              <p class="checkout-message full-field" id="brandAdminMessage" role="status"></p>
+            </form>
+
+            <div class="product-admin-table brand-admin-table" id="brandAdminTable">
+              <div class="product-admin-row product-admin-head brand-admin-row brand-admin-head">
+                <span>Brand</span>
+                <span>Logo</span>
+                <span>Status</span>
+                <span>Action</span>
+              </div>
+            </div>
+          </div>
+        </article>
+
         <article class="admin-card wide-card" id="products-admin">
           <div class="section-heading">
             <div><span class="eyebrow">Catalog</span><h2>Add / edit products</h2></div>
@@ -98,7 +141,9 @@
               </label>
               <label>
                 Brand
-                <input name="brand" required autocomplete="off" />
+                <select name="brand" required>
+                  <option value="">Select brand</option>
+                </select>
               </label>
               <label>
                 Category
@@ -273,6 +318,6 @@
 </footer>
 
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
-    <script src="script.js?v=20260517-price"></script>
+    <script src="script.js?v=20260517-brands"></script>
   </body>
 </html>

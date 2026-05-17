@@ -612,6 +612,134 @@ main {
   background: var(--sea);
 }
 
+.brand-page-hero {
+  display: grid;
+  place-items: center;
+  min-height: 520px;
+  padding: 88px 20px 64px;
+  text-align: center;
+  background: #fff;
+}
+
+.brand-page-hero h1 {
+  margin: 0 0 42px;
+  font-size: clamp(3rem, 8vw, 6.4rem);
+  line-height: 0.95;
+}
+
+.brand-page-hero h1 span {
+  color: var(--sea);
+}
+
+.brand-page-hero p {
+  margin: 18px 0 0;
+  color: var(--plum);
+  font-size: clamp(1rem, 2vw, 1.35rem);
+  font-weight: 700;
+}
+
+.brand-page-hero p span {
+  color: var(--coral);
+}
+
+.featured-brand-list,
+.brand-directory-grid {
+  display: grid;
+  gap: 14px;
+}
+
+.featured-brand-list {
+  grid-template-columns: repeat(5, minmax(130px, 1fr));
+  width: min(980px, 100%);
+}
+
+.featured-brand-card,
+.brand-directory-card {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #fff;
+  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.featured-brand-card:hover,
+.featured-brand-card:focus-visible,
+.brand-directory-card:hover,
+.brand-directory-card:focus-visible {
+  border-color: rgba(15, 139, 141, 0.45);
+  box-shadow: 0 12px 28px rgba(18, 35, 44, 0.1);
+  transform: translateY(-2px);
+  outline: none;
+}
+
+.featured-brand-card {
+  display: grid;
+  place-items: center;
+  min-height: 120px;
+  padding: 18px;
+}
+
+.featured-brand-card img,
+.brand-directory-card img {
+  max-width: 100%;
+  max-height: 74px;
+  object-fit: contain;
+}
+
+.featured-brand-card span,
+.brand-directory-card div > span {
+  display: grid;
+  place-items: center;
+  width: 78px;
+  height: 78px;
+  border-radius: var(--radius);
+  color: #fff;
+  background: var(--sea);
+  font-size: 1.45rem;
+  font-weight: 900;
+}
+
+.featured-brand-card .brand-wordmark,
+.brand-directory-card div > .brand-wordmark {
+  width: min(100%, 178px);
+  min-height: 62px;
+  height: auto;
+  padding: 0 14px;
+  color: var(--ink);
+  background: #eef7f5;
+  font-size: clamp(1rem, 1.7vw, 1.35rem);
+  line-height: 1.12;
+}
+
+.brand-directory-grid {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+.brand-directory-card {
+  display: grid;
+  gap: 10px;
+  align-content: start;
+  min-height: 220px;
+  padding: 18px;
+}
+
+.brand-directory-card div {
+  display: grid;
+  place-items: center;
+  min-height: 92px;
+  border-radius: var(--radius);
+  background: #f6faf8;
+}
+
+.brand-directory-card strong {
+  font-size: 1.08rem;
+}
+
+.brand-directory-card p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
 .category-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -1498,6 +1626,12 @@ main {
   font-weight: 800;
 }
 
+.product-admin-form .checkbox-field {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .product-admin-form input,
 .product-admin-form select,
 .product-admin-form textarea {
@@ -1508,6 +1642,12 @@ main {
   border-radius: var(--radius);
   color: var(--ink);
   background: #fff;
+}
+
+.product-admin-form .checkbox-field input {
+  width: 18px;
+  min-height: 18px;
+  padding: 0;
 }
 
 .product-admin-form textarea {
@@ -1577,6 +1717,10 @@ main {
   background: #fff;
 }
 
+.brand-admin-row {
+  grid-template-columns: minmax(190px, 1.2fr) minmax(180px, 1fr) 90px 132px;
+}
+
 .product-admin-head {
   color: var(--muted);
   background: #f8fbfb;
@@ -1619,6 +1763,12 @@ main {
 }
 
 .row-actions [data-delete-product] {
+  color: #9f2f22;
+  border-color: rgba(233, 101, 82, 0.28);
+  background: rgba(233, 101, 82, 0.09);
+}
+
+.row-actions [data-delete-brand] {
   color: #9f2f22;
   border-color: rgba(233, 101, 82, 0.28);
   background: rgba(233, 101, 82, 0.09);
@@ -2560,6 +2710,11 @@ main {
   .brand-row {
     grid-template-columns: repeat(4, 1fr);
   }
+
+  .featured-brand-list,
+  .brand-directory-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
 }
 
 @media (max-width: 760px) {
@@ -2750,6 +2905,21 @@ main {
     grid-template-columns: repeat(2, 1fr);
   }
 
+  .brand-page-hero {
+    min-height: auto;
+    padding: 54px 14px 44px;
+  }
+
+  .brand-page-hero h1 {
+    font-size: 2.45rem;
+    line-height: 1.05;
+  }
+
+  .featured-brand-list,
+  .brand-directory-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
   .assurance-strip div {
     min-height: 86px;
   }
@@ -2885,6 +3055,15 @@ main {
 
   .category-rail {
     grid-template-columns: 1fr;
+  }
+
+  .featured-brand-list,
+  .brand-directory-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .brand-page-hero h1 {
+    font-size: 2.1rem;
   }
 
   .promo-copy h1,

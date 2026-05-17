@@ -5,6 +5,7 @@
 - Set `ADMIN_PASSWORD` to a private password that is not shared in chat, screenshots, or GitHub.
 - Keep `SESSION_SECRET` present and random. Render can generate it from `render.yaml`.
 - Keep `ADMIN_SESSION_MINUTES=30` unless you intentionally want a shorter or longer admin session.
+- To make `/admin.html` show `404` for everyone except your network, set `ADMIN_ALLOWED_IPS` to your public IP address in Render Environment. Use `ADMIN_ALLOWED_IP_HASHES` instead if you prefer storing a SHA-256 hash of the IP.
 - For real orders, attach a Render persistent disk mounted at `/var/data` and set `DATA_DIR=/var/data`.
 - Add Razorpay keys only in Render Environment, never in code or GitHub.
 - Keep `NODE_ENV=production` on Render.

@@ -28,6 +28,7 @@ const defaultDataDir = path.join(rootDir, "data");
 const dataDir = path.resolve(process.env.DATA_DIR || defaultDataDir);
 const adminSessionMinutes = Math.min(720, Math.max(5, Number(process.env.ADMIN_SESSION_MINUTES || 30) || 30));
 const productsFile = path.join(dataDir, "products.json");
+const brandsFile = path.join(dataDir, "brands.json");
 const ordersFile = path.join(dataDir, "orders.json");
 const accountsFile = path.join(dataDir, "accounts.json");
 const paymentAttemptsFile = path.join(dataDir, "payment-attempts.json");
@@ -38,6 +39,8 @@ const maxAdminJsonBodyBytes = 24 * 1024 * 1024;
 const rateLimitStore = new Map();
 const fileWriteQueues = new Map();
 const orderStatuses = ["Request received", "Callback done", "Packed", "Shipped", "Delivered", "Cancelled"];
+const adminAllowedIps = parseCsvEnv(process.env.ADMIN_ALLOWED_IPS);
+const adminAllowedIpHashes = parseCsvEnv(process.env.ADMIN_ALLOWED_IP_HASHES).map((hash) => hash.toLowerCase());
 
 const mimeTypes = new Map([
   [".html", "text/html; charset=utf-8"],
@@ -231,12 +234,57 @@ const defaultProducts = [
   },
 ];
 
+const defaultBrands = [
+  { name: "D-Tech", description: "Dental materials, composites, cements, and restorative essentials.", featured: true },
+  { name: "Waldent", description: "Clinic instruments, equipment, endodontic kits, and daily operatory supplies.", featured: true },
+  { name: "NSK", description: "Precision rotary instruments and chairside equipment.", featured: true },
+  { name: "Dentsply", description: "Implant, endodontic, and clinical consumable ranges.", featured: true },
+  { name: "GC", description: "Restorative, impression, and glass ionomer materials.", featured: true },
+  { name: "Woodpecker", description: "Endodontic motors, apex locators, scalers, and curing lights.", featured: true },
+  { name: "3M ESPE", description: "Composite, restorative, and bonding materials.", featured: true },
+  { name: "Orthometric", description: "Orthodontic brackets, wires, and alignment products.", featured: true },
+  { name: "DentalTech", description: "Dental practice essentials and value-focused consumables.", featured: true },
+];
+
+function parseCsvEnv(value) {
+  return String(value || "")
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
 function slugify(value) {
   return String(value || "")
     .toLowerCase()
     .trim()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
+}
+
+function normalizeIp(value) {
+  return String(value || "")
+    .trim()
+    .replace(/^::ffff:/, "")
+    .replace(/^\[|\]$/g, "");
+}
+
+function clientIps(req) {
+  const forwarded = String(req.headers["x-forwarded-for"] || "")
+    .split(",")
+    .map(normalizeIp)
+    .filter(Boolean);
+  const direct = normalizeIp(req.socket?.remoteAddress || "");
+  return Array.from(new Set([...forwarded, direct].filter(Boolean)));
+}
+
+function ipHash(value) {
+  return crypto.createHash("sha256").update(normalizeIp(value)).digest("hex");
+}
+
+function isAdminNetworkAllowed(req) {
+  if (!isProduction) return true;
+  if (!adminAllowedIps.length && !adminAllowedIpHashes.length) return true;
+  return clientIps(req).some((ip) => adminAllowedIps.includes(ip) || adminAllowedIpHashes.includes(ipHash(ip)));
 }
 
 function createPublicId(prefix) {
@@ -290,6 +338,31 @@ function normalizeProduct(product) {
     gstRate: Number(product.gstRate ?? defaultGstRate),
     updatedAt: product.updatedAt || new Date().toISOString(),
   };
+}
+
+function normalizeBrand(brand) {
+  const name = String(brand.name || "").trim();
+  return {
+    id: slugify(brand.id || name),
+    name,
+    logo: String(brand.logo || "").trim(),
+    description: String(brand.description || "Trusted dental brand available at Dental Factory.").trim(),
+    featured: brand.featured !== false,
+    updatedAt: brand.updatedAt || new Date().toISOString(),
+  };
+}
+
+function mergeBrands(brands, products = []) {
+  const byId = new Map();
+  brands.map(normalizeBrand).forEach((brand) => {
+    if (brand.name) byId.set(brand.id || slugify(brand.name), brand);
+  });
+  products.map(normalizeProduct).forEach((product) => {
+    const id = slugify(product.brand);
+    if (!id || byId.has(id)) return;
+    byId.set(id, normalizeBrand({ name: product.brand, description: "Brand used in the current product catalog.", featured: true }));
+  });
+  return Array.from(byId.values()).sort((a, b) => a.name.localeCompare(b.name));
 }
 
 function normalizePhone(value) {
@@ -443,6 +516,10 @@ function isAdmin(req) {
 }
 
 function requireAdmin(req, res) {
+  if (!isAdminNetworkAllowed(req)) {
+    sendJson(res, 404, { error: "Not found" });
+    return false;
+  }
   if (!adminPassword) {
     sendJson(res, 503, { error: "Admin password is not configured. Set ADMIN_PASSWORD in Render Environment first." });
     return false;
@@ -458,6 +535,12 @@ async function ensureDataFiles() {
     await fs.access(productsFile);
   } catch {
     await writeJson(productsFile, defaultProducts.map(normalizeProduct));
+  }
+  try {
+    await fs.access(brandsFile);
+  } catch {
+    const products = await readJson(productsFile, defaultProducts);
+    await writeJson(brandsFile, mergeBrands(defaultBrands, products));
   }
   try {
     await fs.access(ordersFile);
@@ -809,6 +892,10 @@ async function handleApi(req, res, reqUrl) {
   }
 
   if (reqUrl.pathname === "/api/admin/session" && req.method === "GET") {
+    if (!isAdminNetworkAllowed(req)) {
+      sendJson(res, 404, { error: "Not found" });
+      return;
+    }
     sendJson(res, 200, {
       authenticated: Boolean(adminPassword) && isAdmin(req),
       adminConfigured: Boolean(adminPassword),
@@ -819,6 +906,10 @@ async function handleApi(req, res, reqUrl) {
   }
 
   if (reqUrl.pathname === "/api/admin/login" && req.method === "POST") {
+    if (!isAdminNetworkAllowed(req)) {
+      sendJson(res, 404, { error: "Not found" });
+      return;
+    }
     if (!checkRateLimit(req, res, "admin-login", 8, 15 * 60 * 1000)) return;
     if (!adminPassword) {
       sendJson(res, 503, { error: "Admin password is not configured. Set ADMIN_PASSWORD in Render Environment first." });
@@ -838,7 +929,58 @@ async function handleApi(req, res, reqUrl) {
   }
 
   if (reqUrl.pathname === "/api/admin/logout" && req.method === "POST") {
+    if (!isAdminNetworkAllowed(req)) {
+      sendJson(res, 404, { error: "Not found" });
+      return;
+    }
     sendJson(res, 200, { authenticated: false }, { "Set-Cookie": clearAdminCookie() });
+    return;
+  }
+
+  if (reqUrl.pathname === "/api/brands" && req.method === "GET") {
+    const brands = await readJson(brandsFile, defaultBrands);
+    const products = await readJson(productsFile, []);
+    sendJson(res, 200, mergeBrands(brands, products));
+    return;
+  }
+
+  if (reqUrl.pathname === "/api/brands" && req.method === "POST") {
+    if (!requireAdmin(req, res)) return;
+    const body = await readRequestJson(req, maxAdminJsonBodyBytes);
+    const brand = normalizeBrand(body.brand || body);
+    if (!brand.name) {
+      sendJson(res, 400, { error: "Brand name is required" });
+      return;
+    }
+    const brands = (await readJson(brandsFile, defaultBrands)).map(normalizeBrand);
+    const editing = String(body.editing || brand.id || brand.name);
+    const editingSlug = slugify(editing);
+    const index = brands.findIndex((item) => item.id === editingSlug || item.name.toLowerCase() === editing.toLowerCase());
+    brand.updatedAt = new Date().toISOString();
+    if (index >= 0) {
+      brands[index] = brand;
+    } else {
+      brands.push(brand);
+    }
+    await writeJson(brandsFile, brands);
+    sendJson(res, index >= 0 ? 200 : 201, brand);
+    return;
+  }
+
+  if (reqUrl.pathname.startsWith("/api/brands/") && req.method === "DELETE") {
+    if (!requireAdmin(req, res)) return;
+    const idOrName = decodeURIComponent(reqUrl.pathname.replace("/api/brands/", ""));
+    const id = slugify(idOrName);
+    const products = (await readJson(productsFile, [])).map(normalizeProduct);
+    const brandInUse = products.some((product) => slugify(product.brand) === id || product.brand.toLowerCase() === idOrName.toLowerCase());
+    if (brandInUse) {
+      sendJson(res, 409, { error: "This brand is used by products. Change or delete those products before deleting the brand." });
+      return;
+    }
+    const brands = (await readJson(brandsFile, defaultBrands)).map(normalizeBrand);
+    const nextBrands = brands.filter((brand) => brand.id !== id && brand.name !== idOrName);
+    await writeJson(brandsFile, nextBrands);
+    sendJson(res, 200, { deleted: brands.length - nextBrands.length, id: idOrName });
     return;
   }
 
@@ -1037,6 +1179,10 @@ async function handleStatic(req, res, reqUrl) {
   const pathSegments = relativePath.split(path.sep);
   const extension = path.extname(filePath).toLowerCase();
   if (!publicStaticExtensions.has(extension) || pathSegments.some((segment) => blockedStaticDirectories.has(segment) || segment.startsWith("."))) {
+    sendText(res, 404, "Not found");
+    return;
+  }
+  if (relativePath.toLowerCase() === "admin.html" && !isAdminNetworkAllowed(req)) {
     sendText(res, 404, "Not found");
     return;
   }

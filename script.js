@@ -90,7 +90,14 @@ const clearProductForm = $("#clearProductForm");
 const resetProductForm = $("#resetProductForm");
 const productImagePreview = $("#productImagePreview");
 const productGalleryPreview = $("#productGalleryPreview");
-const brandButtons = $$(".brand-row button[data-brand], .brand-filter button[data-brand]");
+const brandAdminForm = $("#brandAdminForm");
+const brandAdminTable = $("#brandAdminTable");
+const brandAdminMessage = $("#brandAdminMessage");
+const clearBrandForm = $("#clearBrandForm");
+const resetBrandForm = $("#resetBrandForm");
+const featuredBrandList = $("#featuredBrandList");
+const brandDirectoryGrid = $("#brandDirectoryGrid");
+let brandButtons = $$(".brand-row button[data-brand], .brand-filter button[data-brand]");
 
 let activeFilter = "all";
 let activeBrand = "";
@@ -99,7 +106,9 @@ let latestAdminOrders = [];
 let adminSessionMinutes = 30;
 let adminAutoLogoutTimer = null;
 const ADMIN_PRODUCTS_KEY = "dentalFactoryAdminProducts";
+const ADMIN_BRANDS_KEY = "dentalFactoryAdminBrands";
 const PRODUCTS_API = "/api/products";
+const BRANDS_API = "/api/brands";
 const ORDERS_API = "/api/orders";
 const ORDER_TRACK_API = "/api/orders/track";
 const ACCOUNTS_API = "/api/accounts";
@@ -148,6 +157,18 @@ const businessInfo = {
   email: "bhartidentindia98@gmail.com",
   address: "Plot no. 95, Gali no. 4, near by Nanu Mandir, Kanjhawla Industrial Area, Kanjhawla, Delhi - 110081",
 };
+
+const defaultBrands = [
+  { name: "D-Tech", description: "Dental materials, composites, cements, and restorative essentials.", featured: true },
+  { name: "Waldent", description: "Clinic instruments, equipment, endodontic kits, and daily operatory supplies.", featured: true },
+  { name: "NSK", description: "Precision rotary instruments and chairside equipment.", featured: true },
+  { name: "Dentsply", description: "Implant, endodontic, and clinical consumable ranges.", featured: true },
+  { name: "GC", description: "Restorative, impression, and glass ionomer materials.", featured: true },
+  { name: "Woodpecker", description: "Endodontic motors, apex locators, scalers, and curing lights.", featured: true },
+  { name: "3M ESPE", description: "Composite, restorative, and bonding materials.", featured: true },
+  { name: "Orthometric", description: "Orthodontic brackets, wires, and alignment products.", featured: true },
+  { name: "DentalTech", description: "Dental practice essentials and value-focused consumables.", featured: true },
+];
 
 const productDetails = {
   "Airotor Elite Handpiece": {
@@ -425,6 +446,231 @@ function loadAdminProducts() {
 
 function saveAdminProducts(products) {
   localStorage.setItem(ADMIN_PRODUCTS_KEY, JSON.stringify(products.map(normalizeAdminProduct).filter((product) => product.name)));
+}
+
+function normalizeBrand(brand) {
+  const name = String(brand.name || "").trim();
+  return {
+    id: String(brand.id || slugifyProduct(name)).trim(),
+    name,
+    logo: String(brand.logo || "").trim(),
+    description: String(brand.description || "Trusted dental brand available at Dental Factory.").trim(),
+    featured: brand.featured !== false,
+  };
+}
+
+function loadAdminBrands() {
+  try {
+    const stored = JSON.parse(localStorage.getItem(ADMIN_BRANDS_KEY) || "null");
+    if (Array.isArray(stored) && stored.length) {
+      return stored.map(normalizeBrand).filter((brand) => brand.name);
+    }
+  } catch {}
+  return defaultBrands.map(normalizeBrand);
+}
+
+function saveAdminBrands(brands) {
+  localStorage.setItem(ADMIN_BRANDS_KEY, JSON.stringify(brands.map(normalizeBrand).filter((brand) => brand.name)));
+}
+
+async function fetchBackendBrands() {
+  try {
+    const brands = await apiJson(BRANDS_API);
+    if (!Array.isArray(brands)) return null;
+    return brands.map(normalizeBrand).filter((brand) => brand.name);
+  } catch {
+    return null;
+  }
+}
+
+async function saveBackendBrand(brand, editing = "") {
+  return apiJson(BRANDS_API, {
+    method: "POST",
+    body: JSON.stringify({ editing, brand: normalizeBrand(brand) }),
+  });
+}
+
+async function deleteBackendBrand(idOrName) {
+  return apiJson(`${BRANDS_API}/${encodeURIComponent(idOrName)}`, {
+    method: "DELETE",
+  });
+}
+
+function refreshBrandButtons() {
+  brandButtons = $$(".brand-row button[data-brand], .brand-filter button[data-brand]");
+}
+
+function brandInitials(name) {
+  const words = String(name || "")
+    .replace(/[^a-z0-9 ]/gi, " ")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  return (words.length > 1 ? words.slice(0, 2).map((word) => word[0]).join("") : String(name || "").slice(0, 2)).toUpperCase();
+}
+
+function catalogBrandNames() {
+  const names = new Set();
+  Object.values(productDetails).forEach((product) => {
+    if (product.brand) names.add(product.brand);
+  });
+  loadAdminProducts().forEach((product) => {
+    if (product.brand) names.add(product.brand);
+  });
+  productCards.forEach((card) => {
+    if (card.dataset.brand) names.add(card.dataset.brand);
+  });
+  return Array.from(names);
+}
+
+function getAvailableBrands() {
+  const byId = new Map();
+  loadAdminBrands().map(normalizeBrand).forEach((brand) => {
+    if (brand.name) byId.set(brand.id || slugifyProduct(brand.name), brand);
+  });
+  catalogBrandNames().forEach((name) => {
+    const id = slugifyProduct(name);
+    if (!id || byId.has(id)) return;
+    byId.set(id, normalizeBrand({ name, description: "Brand used in the current product catalog.", featured: true }));
+  });
+  return Array.from(byId.values()).sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function populateBrandSelect(selected = "") {
+  const brandSelect = productAdminForm?.elements.brand;
+  if (!brandSelect || brandSelect.tagName !== "SELECT") return;
+  const brands = getAvailableBrands();
+  const selectedValue = String(selected || brandSelect.value || "");
+  brandSelect.innerHTML = `<option value="">Select brand</option>${brands
+    .map((brand) => `<option value="${escapeHtml(brand.name)}">${escapeHtml(brand.name)}</option>`)
+    .join("")}`;
+  if (selectedValue && !brands.some((brand) => brand.name === selectedValue)) {
+    brandSelect.insertAdjacentHTML("beforeend", `<option value="${escapeHtml(selectedValue)}">${escapeHtml(selectedValue)}</option>`);
+  }
+  brandSelect.value = selectedValue;
+}
+
+function brandLogoHtml(brand) {
+  if (brand.logo) {
+    return `<img src="${escapeHtml(brand.logo)}" alt="${escapeHtml(brand.name)} logo" />`;
+  }
+  return `<span class="brand-wordmark">${escapeHtml(brand.name)}</span>`;
+}
+
+function brandButtonTemplate(brand) {
+  return `<button type="button" data-brand="${escapeHtml(brand.name)}">${escapeHtml(brand.name)}</button>`;
+}
+
+function featuredBrandTemplate(brand) {
+  return `
+    <a class="featured-brand-card" href="products.html?brand=${encodeURIComponent(brand.name)}" aria-label="Shop ${escapeHtml(brand.name)} products">
+      ${brandLogoHtml(brand)}
+    </a>
+  `;
+}
+
+function brandDirectoryTemplate(brand) {
+  return `
+    <a class="brand-directory-card" href="products.html?brand=${encodeURIComponent(brand.name)}">
+      <div>${brandLogoHtml(brand)}</div>
+      <strong>${escapeHtml(brand.name)}</strong>
+      <p>${escapeHtml(brand.description)}</p>
+    </a>
+  `;
+}
+
+function renderBrandsOnStorefront(brands = getAvailableBrands()) {
+  const visibleBrands = brands.filter((brand) => brand.name);
+  const featuredBrands = visibleBrands.filter((brand) => brand.featured).slice(0, 8);
+
+  $$(".brand-row").forEach((row) => {
+    row.innerHTML = featuredBrands.map(brandButtonTemplate).join("");
+  });
+  $$(".brand-filter").forEach((filter) => {
+    filter.innerHTML = visibleBrands.map(brandButtonTemplate).join("");
+  });
+  if (featuredBrandList) {
+    featuredBrandList.innerHTML = featuredBrands.slice(0, 5).map(featuredBrandTemplate).join("");
+  }
+  if (brandDirectoryGrid) {
+    brandDirectoryGrid.innerHTML = visibleBrands.map(brandDirectoryTemplate).join("");
+  }
+  refreshBrandButtons();
+  brandButtons.forEach((button) => button.classList.toggle("is-active", button.dataset.brand === activeBrand));
+  populateBrandSelect(productAdminForm?.elements.brand?.value || "");
+}
+
+function brandRowTemplate(brand) {
+  return `
+    <strong>${escapeHtml(brand.name)}<small>${escapeHtml(brand.description)}</small></strong>
+    <span>${brand.logo ? escapeHtml(brand.logo) : "No logo"}</span>
+    <b>${brand.featured ? "Featured" : "Hidden"}</b>
+    <div class="row-actions">
+      <button type="button" data-edit-brand>Edit</button>
+      <button type="button" data-delete-brand>Delete</button>
+    </div>
+  `;
+}
+
+function applyBrandRowData(row, data) {
+  const brand = normalizeBrand(data);
+  row.dataset.id = brand.id;
+  row.dataset.name = brand.name;
+  row.dataset.logo = brand.logo;
+  row.dataset.description = brand.description;
+  row.dataset.featured = String(brand.featured);
+  row.innerHTML = brandRowTemplate(brand);
+}
+
+function adminBrandsFromRows() {
+  if (!brandAdminTable) return [];
+  return $$("#brandAdminTable .brand-admin-row:not(.brand-admin-head)").map((row) =>
+    normalizeBrand({
+      id: row.dataset.id,
+      name: row.dataset.name,
+      logo: row.dataset.logo,
+      description: row.dataset.description,
+      featured: row.dataset.featured !== "false",
+    })
+  );
+}
+
+function renderAdminBrandRows(brands) {
+  if (!brandAdminTable) return;
+  $$("#brandAdminTable .brand-admin-row:not(.brand-admin-head)").forEach((row) => row.remove());
+  brands.forEach((brand) => {
+    const row = document.createElement("div");
+    row.className = "product-admin-row brand-admin-row";
+    applyBrandRowData(row, brand);
+    brandAdminTable.appendChild(row);
+  });
+}
+
+function resetAdminBrandForm() {
+  if (!brandAdminForm) return;
+  brandAdminForm.reset();
+  brandAdminForm.elements.editing.value = "";
+  if (brandAdminForm.elements.featured) brandAdminForm.elements.featured.checked = true;
+  if (brandAdminMessage) brandAdminMessage.textContent = "Ready to add a new brand.";
+}
+
+function syncLocalAdminBrands(brands) {
+  const normalizedBrands = brands.map(normalizeBrand).filter((brand) => brand.name);
+  saveAdminBrands(normalizedBrands);
+  renderAdminBrandRows(normalizedBrands);
+  renderBrandsOnStorefront(normalizedBrands);
+}
+
+function hydrateAdminBrands() {
+  const brands = loadAdminBrands();
+  renderAdminBrandRows(brands);
+  renderBrandsOnStorefront(brands);
+}
+
+async function syncBrandsFromBackend() {
+  const backendBrands = await fetchBackendBrands();
+  if (!backendBrands) return;
+  syncLocalAdminBrands(backendBrands);
 }
 
 async function apiJson(url, options = {}) {
@@ -1713,6 +1959,7 @@ function resetAdminProductForm() {
   ["name", "brand", "price", "mrp", "stock", "hsn", "unit", "gstRate", "description", "image", "images"].forEach((fieldName) => {
     if (productAdminForm.elements[fieldName]) productAdminForm.elements[fieldName].value = "";
   });
+  populateBrandSelect("");
   if (productImagePreview) productImagePreview.src = "assets/hero-dental-shop.png";
   renderProductGalleryPreview([]);
   if (productAdminMessage) productAdminMessage.textContent = "Ready to add a new product.";
@@ -1786,6 +2033,7 @@ function syncLocalAdminProducts(products) {
   if (productAdminTable) {
     renderAdminProductRows(products);
   }
+  renderBrandsOnStorefront();
   renderAdminProductsOnStorefront();
   injectDetailButtons();
   setIcons();
@@ -2418,7 +2666,7 @@ document.addEventListener("click", async (event) => {
     const row = editProductButton.closest(".product-admin-row");
     productAdminForm.elements.editing.value = row.dataset.name;
     productAdminForm.elements.name.value = row.dataset.name;
-    productAdminForm.elements.brand.value = row.dataset.brand;
+    populateBrandSelect(row.dataset.brand);
     productAdminForm.elements.category.value = row.dataset.category;
     productAdminForm.elements.price.value = row.dataset.price;
     productAdminForm.elements.mrp.value = row.dataset.mrp;
@@ -2451,6 +2699,36 @@ document.addEventListener("click", async (event) => {
     } catch (error) {
       deleteProductButton.disabled = false;
       if (productAdminMessage) productAdminMessage.textContent = `Delete failed: ${error.message}. Start the backend server and try again.`;
+    }
+  }
+
+  const editBrandButton = event.target.closest("[data-edit-brand]");
+  if (editBrandButton && brandAdminForm) {
+    const row = editBrandButton.closest(".brand-admin-row");
+    brandAdminForm.elements.editing.value = row.dataset.name;
+    brandAdminForm.elements.name.value = row.dataset.name;
+    brandAdminForm.elements.logo.value = row.dataset.logo || "";
+    brandAdminForm.elements.description.value = row.dataset.description || "";
+    if (brandAdminForm.elements.featured) brandAdminForm.elements.featured.checked = row.dataset.featured !== "false";
+    if (brandAdminMessage) brandAdminMessage.textContent = `Editing ${row.dataset.name}.`;
+    brandAdminForm.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+
+  const deleteBrandButton = event.target.closest("[data-delete-brand]");
+  if (deleteBrandButton && brandAdminTable) {
+    const row = deleteBrandButton.closest(".brand-admin-row");
+    const brandName = row?.dataset.name || "Brand";
+    const brandId = row?.dataset.id || slugifyProduct(brandName);
+    deleteBrandButton.disabled = true;
+    if (brandAdminMessage) brandAdminMessage.textContent = `Deleting ${brandName} from backend...`;
+    try {
+      await deleteBackendBrand(brandId || brandName);
+      syncLocalAdminBrands(loadAdminBrands().filter((brand) => brand.name !== brandName && brand.id !== brandId));
+      if (brandAdminForm?.elements.editing.value === brandName) resetAdminBrandForm();
+      if (brandAdminMessage) brandAdminMessage.textContent = `${brandName} deleted from backend.`;
+    } catch (error) {
+      deleteBrandButton.disabled = false;
+      if (brandAdminMessage) brandAdminMessage.textContent = `Brand delete failed: ${error.message}`;
     }
   }
 
@@ -2771,7 +3049,7 @@ function autoTrackInitialOrder() {
 
 adminSearch?.addEventListener("input", () => {
   const term = adminSearch.value.trim().toLowerCase();
-  $$(".admin-table > div, .stock-list > div, .enquiry-board > div, .product-admin-row:not(.product-admin-head)").forEach((row) => {
+  $$(".admin-table > div, .stock-list > div, .enquiry-board > div, .product-admin-row:not(.product-admin-head), .brand-admin-row:not(.brand-admin-head)").forEach((row) => {
     row.hidden = term && !row.textContent.toLowerCase().includes(term);
   });
 });
@@ -2792,6 +3070,7 @@ adminLoginForm?.addEventListener("submit", async (event) => {
     form.reset();
     setAdminUnlocked(true);
     if (adminAuthMessage) adminAuthMessage.textContent = "";
+    await syncBrandsFromBackend();
     await syncProductsFromBackend();
     await refreshAdminOrders();
   } catch (error) {
@@ -2825,6 +3104,42 @@ assignCallbackButton?.addEventListener("click", () => {
   if (adminActionMessage) adminActionMessage.textContent = "Callback queue ready. Open an enquiry below, then call or WhatsApp the customer.";
   $("#enquiries")?.scrollIntoView({ behavior: "smooth", block: "start" });
 });
+
+brandAdminForm?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const formData = new FormData(event.currentTarget);
+  const data = {
+    name: String(formData.get("name") || "").trim(),
+    logo: String(formData.get("logo") || "").trim(),
+    description: String(formData.get("description") || "").trim(),
+    featured: Boolean(formData.get("featured")),
+  };
+  const editing = String(formData.get("editing") || "");
+  const submitButton = event.currentTarget.querySelector("button[type='submit']");
+  submitButton.disabled = true;
+  if (brandAdminMessage) brandAdminMessage.textContent = `Saving ${data.name} to backend...`;
+
+  try {
+    const savedBrand = normalizeBrand(await saveBackendBrand(data, editing));
+    const brands = loadAdminBrands();
+    const existingIndex = brands.findIndex((brand) => brand.name === editing || brand.name === savedBrand.name || brand.id === savedBrand.id);
+    if (existingIndex >= 0) {
+      brands[existingIndex] = savedBrand;
+    } else {
+      brands.push(savedBrand);
+    }
+    syncLocalAdminBrands(brands);
+    resetAdminBrandForm();
+    if (brandAdminMessage) brandAdminMessage.textContent = `${savedBrand.name} saved. It is now available in product Brand select.`;
+  } catch (error) {
+    if (brandAdminMessage) brandAdminMessage.textContent = `Brand save failed: ${error.message}`;
+  } finally {
+    submitButton.disabled = false;
+  }
+});
+
+clearBrandForm?.addEventListener("click", resetAdminBrandForm);
+resetBrandForm?.addEventListener("click", resetAdminBrandForm);
 
 productAdminForm?.elements.image?.addEventListener("input", () => {
   updateAdminImagePreview();
@@ -2910,8 +3225,11 @@ $$(".membership-card[data-membership-type]").forEach((card) => {
 
 $$('input[name="type"]').forEach((input) => input.addEventListener("change", updateAccountTypeLabels));
 updateAccountTypeLabels();
+hydrateAdminBrands();
 hydrateAdminProducts();
+resetAdminBrandForm();
 resetAdminProductForm();
+renderBrandsOnStorefront();
 renderAdminProductsOnStorefront();
 injectDetailButtons();
 renderProductDetailPage();
@@ -2923,7 +3241,14 @@ updateMembershipUi();
 loadPaymentConfig();
 const initialSearch = searchParams().get("search");
 if (initialSearch && searchInput) searchInput.value = initialSearch;
+const initialBrand = searchParams().get("brand");
+if (initialBrand) activeBrand = initialBrand;
 applyFilter("all");
+syncBrandsFromBackend().then(() => {
+  if (initialBrand) activeBrand = initialBrand;
+  renderBrandsOnStorefront();
+  applyFilter(activeFilter);
+});
 syncProductsFromBackend().then(() => {
   renderProductDetailPage();
   renderAdminMetrics(latestAdminOrders);
