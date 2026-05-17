@@ -8,7 +8,7 @@
     <link rel="canonical" href="https://bhartidentindia.com/admin.html" />
     <meta name="robots" content="noindex, follow" />
     <link rel="preconnect" href="https://unpkg.com" />
-    <link rel="stylesheet" href="styles.css?v=20260517-ads" />
+    <link rel="stylesheet" href="styles.css?v=20260517-adimages" />
     <link rel="icon" href="assets/dental-factory-logo-mark.png?v=20260517-logo" />
   </head>
   <body>
@@ -101,9 +101,18 @@
               <label>
                 Placement
                 <select name="placement" required>
+                  <option value="">Select placement</option>
                   <option value="home-banner">Home page banner</option>
                   <option value="products-top">Products page top</option>
                 </select>
+              </label>
+              <label>
+                Banner image URL or file name
+                <input name="image" autocomplete="off" />
+              </label>
+              <label>
+                Upload banner photo
+                <input name="imageUpload" type="file" accept="image/*" />
               </label>
               <label class="full-field">
                 Ad message
@@ -111,15 +120,15 @@
               </label>
               <label>
                 Button text
-                <input name="cta" autocomplete="off" placeholder="Shop now" />
+                <input name="cta" autocomplete="off" />
               </label>
               <label>
                 Button link
-                <input name="link" autocomplete="off" placeholder="products.html" />
+                <input name="link" autocomplete="off" />
               </label>
               <label>
                 Priority
-                <input name="priority" inputmode="numeric" autocomplete="off" placeholder="1" />
+                <input name="priority" inputmode="numeric" autocomplete="off" />
               </label>
               <label class="checkbox-field">
                 <input name="active" type="checkbox" checked />
@@ -160,8 +169,8 @@
                 <input name="logo" autocomplete="off" />
               </label>
               <label class="full-field">
-                Brand description
-                <textarea name="description" autocomplete="off" placeholder="Short line for the public brands page"></textarea>
+                Upload brand logo/photo
+                <input name="logoUpload" type="file" accept="image/*" />
               </label>
               <label class="checkbox-field full-field">
                 <input name="featured" type="checkbox" checked />
@@ -376,6 +385,6 @@
 </footer>
 
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
-    <script src="script.js?v=20260517-ads"></script>
+    <script src="script.js?v=20260517-adimages"></script>
   </body>
 </html>

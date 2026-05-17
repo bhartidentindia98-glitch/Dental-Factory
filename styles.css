@@ -278,8 +278,8 @@ main {
 
 .storefront {
   display: grid;
-  grid-template-columns: 240px minmax(0, 1fr);
-  gap: 18px;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
   align-items: start;
 }
 
@@ -322,7 +322,7 @@ main {
 
 .promo-slider {
   position: relative;
-  min-height: 338px;
+  min-height: 306px;
   overflow: hidden;
   border-radius: var(--radius);
   background: #eef7f5;
@@ -336,7 +336,7 @@ main {
   grid-template-columns: 1fr;
   align-items: center;
   gap: 10px;
-  padding: 40px 56px;
+  padding: 32px 48px;
   opacity: 0;
   pointer-events: none;
   transition: opacity 280ms ease;
@@ -383,7 +383,7 @@ main {
 .promo-copy h2 {
   max-width: 600px;
   margin: 14px 0 12px;
-  font-size: clamp(2rem, 3.6vw, 3.45rem);
+  font-size: clamp(1.9rem, 3vw, 3rem);
   line-height: 1;
   overflow-wrap: break-word;
 }
@@ -394,6 +394,27 @@ main {
   color: #31424c;
   font-size: 1.05rem;
   line-height: 1.55;
+}
+
+.promo-slide.has-media {
+  grid-template-columns: minmax(280px, 0.78fr) minmax(360px, 1.22fr);
+  gap: 26px;
+}
+
+.promo-media {
+  position: relative;
+  z-index: 1;
+  height: 238px;
+  overflow: hidden;
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.6);
+}
+
+.promo-media img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
 }
 
 .promo-actions {
@@ -454,6 +475,14 @@ main {
 
 .ad-strip .promo-copy h2 {
   font-size: clamp(1.45rem, 2.5vw, 2.2rem);
+}
+
+.ad-strip .promo-slide.has-media {
+  grid-template-columns: minmax(240px, 0.85fr) minmax(260px, 1fr);
+}
+
+.ad-strip .promo-media {
+  height: 122px;
 }
 
 .ad-dots {
@@ -722,8 +751,16 @@ main {
   object-fit: contain;
 }
 
-.featured-brand-card span,
-.brand-directory-card div > span {
+.brand-logo-frame {
+  display: grid;
+  place-items: center;
+  width: 100%;
+}
+
+.featured-brand-card > .brand-wordmark,
+.featured-brand-card .brand-logo-frame > .brand-wordmark,
+.brand-directory-card div > .brand-wordmark,
+.brand-directory-card .brand-logo-frame > .brand-wordmark {
   display: grid;
   place-items: center;
   width: 78px;
@@ -755,7 +792,7 @@ main {
   display: grid;
   gap: 10px;
   align-content: start;
-  min-height: 220px;
+  min-height: 174px;
   padding: 18px;
 }
 
@@ -2873,7 +2910,7 @@ main {
   }
 
   .promo-slider {
-    min-height: 360px;
+    min-height: 336px;
   }
 
   .promo-slide {
@@ -2881,6 +2918,14 @@ main {
     align-content: center;
     padding: 32px 22px 48px;
     text-align: left;
+  }
+
+  .promo-slide.has-media {
+    grid-template-columns: 1fr;
+  }
+
+  .promo-media {
+    height: 156px;
   }
 
   .promo-copy h1,

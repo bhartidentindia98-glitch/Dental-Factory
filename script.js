@@ -494,8 +494,9 @@ function normalizeAd(ad) {
     id: String(ad.id || slugifyProduct(`${placement}-${title}`)).trim(),
     title,
     message: String(ad.message || "").trim(),
-    cta: String(ad.cta || "Shop now").trim(),
-    link: String(ad.link || "products.html").trim(),
+    image: String(ad.image || "").trim(),
+    cta: String(ad.cta || "").trim(),
+    link: String(ad.link || "").trim(),
     placement,
     active: ad.active !== false,
     priority: Number(ad.priority || 1),
@@ -556,16 +557,17 @@ function adPlacementLabel(placement) {
 }
 
 function adSlideTemplate(ad) {
+  const hasMedia = Boolean(ad.image);
+  const hasAction = Boolean(ad.cta && ad.link);
   return `
-    <div class="promo-slide ad-slide">
+    <div class="promo-slide ad-slide${hasMedia ? " has-media" : ""}">
       <div class="promo-copy">
         <span class="eyebrow">Ad</span>
         <h2>${escapeHtml(ad.title)}</h2>
         <p>${escapeHtml(ad.message)}</p>
-        <div class="promo-actions">
-          <a class="primary-link" href="${escapeHtml(ad.link || "products.html")}">${escapeHtml(ad.cta || "Shop now")}</a>
-        </div>
+        ${hasAction ? `<div class="promo-actions"><a class="primary-link" href="${escapeHtml(ad.link)}">${escapeHtml(ad.cta)}</a></div>` : ""}
       </div>
+      ${hasMedia ? `<div class="promo-media"><img src="${escapeHtml(ad.image)}" alt="${escapeHtml(ad.title)} banner" /></div>` : ""}
     </div>
   `;
 }
@@ -638,6 +640,7 @@ function applyAdRowData(row, data) {
   row.dataset.id = ad.id;
   row.dataset.title = ad.title;
   row.dataset.message = ad.message;
+  row.dataset.image = ad.image;
   row.dataset.cta = ad.cta;
   row.dataset.link = ad.link;
   row.dataset.placement = ad.placement;
@@ -666,7 +669,6 @@ function resetAdminAdForm() {
   adAdminForm.reset();
   adAdminForm.elements.editing.value = "";
   if (adAdminForm.elements.active) adAdminForm.elements.active.checked = true;
-  if (adAdminForm.elements.priority) adAdminForm.elements.priority.value = "1";
   if (adAdminMessage) adAdminMessage.textContent = "Ready to run a new banner ad.";
 }
 
@@ -700,7 +702,7 @@ function normalizeBrand(brand) {
     id: String(brand.id || slugifyProduct(name)).trim(),
     name,
     logo: String(brand.logo || "").trim(),
-    description: String(brand.description || "Trusted dental brand available at Dental Factory.").trim(),
+    description: String(brand.description || "").trim(),
     featured: brand.featured !== false,
   };
 }
@@ -798,7 +800,7 @@ function populateBrandSelect(selected = "") {
 
 function brandLogoHtml(brand) {
   if (brand.logo) {
-    return `<img src="${escapeHtml(brand.logo)}" alt="${escapeHtml(brand.name)} logo" />`;
+    return `<span class="brand-logo-frame"><img src="${escapeHtml(brand.logo)}" alt="${escapeHtml(brand.name)} logo" /><span class="brand-wordmark" hidden>${escapeHtml(brand.name)}</span></span>`;
   }
   return `<span class="brand-wordmark">${escapeHtml(brand.name)}</span>`;
 }
@@ -820,9 +822,19 @@ function brandDirectoryTemplate(brand) {
     <a class="brand-directory-card" href="products.html?brand=${encodeURIComponent(brand.name)}">
       <div>${brandLogoHtml(brand)}</div>
       <strong>${escapeHtml(brand.name)}</strong>
-      <p>${escapeHtml(brand.description)}</p>
     </a>
   `;
+}
+
+function repairBrandLogoFallbacks() {
+  $$(".brand-logo-frame img").forEach((image) => {
+    const showFallback = () => {
+      image.hidden = true;
+      if (image.nextElementSibling) image.nextElementSibling.hidden = false;
+    };
+    image.addEventListener("error", showFallback, { once: true });
+    if (image.complete && image.naturalWidth === 0) showFallback();
+  });
 }
 
 function renderBrandsOnStorefront(brands = getAvailableBrands()) {
@@ -842,13 +854,14 @@ function renderBrandsOnStorefront(brands = getAvailableBrands()) {
     brandDirectoryGrid.innerHTML = visibleBrands.map(brandDirectoryTemplate).join("");
   }
   refreshBrandButtons();
+  repairBrandLogoFallbacks();
   brandButtons.forEach((button) => button.classList.toggle("is-active", button.dataset.brand === activeBrand));
   populateBrandSelect(productAdminForm?.elements.brand?.value || "");
 }
 
 function brandRowTemplate(brand) {
   return `
-    <strong>${escapeHtml(brand.name)}<small>${escapeHtml(brand.description)}</small></strong>
+    <strong>${escapeHtml(brand.name)}<small>${brand.logo ? "Logo uploaded" : "No logo uploaded"}</small></strong>
     <span>${brand.logo ? escapeHtml(brand.logo) : "No logo"}</span>
     <b>${brand.featured ? "Featured" : "Hidden"}</b>
     <div class="row-actions">
@@ -875,7 +888,6 @@ function adminBrandsFromRows() {
       id: row.dataset.id,
       name: row.dataset.name,
       logo: row.dataset.logo,
-      description: row.dataset.description,
       featured: row.dataset.featured !== "false",
     })
   );
@@ -2956,10 +2968,11 @@ document.addEventListener("click", async (event) => {
     adAdminForm.elements.editing.value = row.dataset.title;
     adAdminForm.elements.title.value = row.dataset.title;
     adAdminForm.elements.message.value = row.dataset.message;
-    adAdminForm.elements.cta.value = row.dataset.cta || "Shop now";
-    adAdminForm.elements.link.value = row.dataset.link || "products.html";
+    if (adAdminForm.elements.image) adAdminForm.elements.image.value = row.dataset.image || "";
+    adAdminForm.elements.cta.value = row.dataset.cta || "";
+    adAdminForm.elements.link.value = row.dataset.link || "";
     adAdminForm.elements.placement.value = row.dataset.placement || "home-banner";
-    adAdminForm.elements.priority.value = row.dataset.priority || "1";
+    adAdminForm.elements.priority.value = row.dataset.priority || "";
     if (adAdminForm.elements.active) adAdminForm.elements.active.checked = row.dataset.active !== "false";
     if (adAdminMessage) adAdminMessage.textContent = `Editing ${row.dataset.title}.`;
     adAdminForm.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -2989,7 +3002,6 @@ document.addEventListener("click", async (event) => {
     brandAdminForm.elements.editing.value = row.dataset.name;
     brandAdminForm.elements.name.value = row.dataset.name;
     brandAdminForm.elements.logo.value = row.dataset.logo || "";
-    brandAdminForm.elements.description.value = row.dataset.description || "";
     if (brandAdminForm.elements.featured) brandAdminForm.elements.featured.checked = row.dataset.featured !== "false";
     if (brandAdminMessage) brandAdminMessage.textContent = `Editing ${row.dataset.name}.`;
     brandAdminForm.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -3072,6 +3084,16 @@ $$("[data-scroll]").forEach((button) => {
     const target = $(`#${button.dataset.scroll}`);
     if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
     else window.location.href = `index.html#${button.dataset.scroll}`;
+  });
+});
+
+$$("[data-hover-scroll]").forEach((button) => {
+  button.addEventListener("mouseenter", () => {
+    const target = $(`#${button.dataset.scroll}`);
+    if (target) {
+      setActiveNavPill(button);
+      target.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
   });
 });
 
@@ -3387,14 +3409,30 @@ assignCallbackButton?.addEventListener("click", () => {
   $("#enquiries")?.scrollIntoView({ behavior: "smooth", block: "start" });
 });
 
+function readImageFile(file) {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.addEventListener("load", () => resolve(String(reader.result || "")));
+    reader.readAsDataURL(file);
+  });
+}
+
+adAdminForm?.elements.imageUpload?.addEventListener("change", async (event) => {
+  const file = event.currentTarget.files?.[0];
+  if (!file || !adAdminForm?.elements.image) return;
+  adAdminForm.elements.image.value = await readImageFile(file);
+  if (adAdminMessage) adAdminMessage.textContent = `${file.name} banner photo loaded. Save ad to publish it.`;
+});
+
 adAdminForm?.addEventListener("submit", async (event) => {
   event.preventDefault();
   const formData = new FormData(event.currentTarget);
   const data = {
     title: String(formData.get("title") || "").trim(),
     message: String(formData.get("message") || "").trim(),
-    cta: String(formData.get("cta") || "Shop now").trim(),
-    link: String(formData.get("link") || "products.html").trim(),
+    image: String(formData.get("image") || "").trim(),
+    cta: String(formData.get("cta") || "").trim(),
+    link: String(formData.get("link") || "").trim(),
     placement: String(formData.get("placement") || "home-banner"),
     active: Boolean(formData.get("active")),
     priority: Number(formData.get("priority") || 1),
@@ -3426,13 +3464,19 @@ adAdminForm?.addEventListener("submit", async (event) => {
 clearAdForm?.addEventListener("click", resetAdminAdForm);
 resetAdForm?.addEventListener("click", resetAdminAdForm);
 
+brandAdminForm?.elements.logoUpload?.addEventListener("change", async (event) => {
+  const file = event.currentTarget.files?.[0];
+  if (!file || !brandAdminForm?.elements.logo) return;
+  brandAdminForm.elements.logo.value = await readImageFile(file);
+  if (brandAdminMessage) brandAdminMessage.textContent = `${file.name} brand logo loaded. Save brand to publish it.`;
+});
+
 brandAdminForm?.addEventListener("submit", async (event) => {
   event.preventDefault();
   const formData = new FormData(event.currentTarget);
   const data = {
     name: String(formData.get("name") || "").trim(),
     logo: String(formData.get("logo") || "").trim(),
-    description: String(formData.get("description") || "").trim(),
     featured: Boolean(formData.get("featured")),
   };
   const editing = String(formData.get("editing") || "");
