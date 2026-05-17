@@ -819,9 +819,8 @@ function featuredBrandTemplate(brand) {
 
 function brandDirectoryTemplate(brand) {
   return `
-    <a class="brand-directory-card" href="products.html?brand=${encodeURIComponent(brand.name)}">
+    <a class="brand-directory-card" href="products.html?brand=${encodeURIComponent(brand.name)}" aria-label="Shop ${escapeHtml(brand.name)} products">
       <div>${brandLogoHtml(brand)}</div>
-      <strong>${escapeHtml(brand.name)}</strong>
     </a>
   `;
 }

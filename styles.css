@@ -790,10 +790,9 @@ main {
 
 .brand-directory-card {
   display: grid;
-  gap: 10px;
   align-content: start;
-  min-height: 174px;
-  padding: 18px;
+  min-height: 144px;
+  padding: 16px;
 }
 
 .brand-directory-card div {
@@ -802,10 +801,6 @@ main {
   min-height: 92px;
   border-radius: var(--radius);
   background: #f6faf8;
-}
-
-.brand-directory-card strong {
-  font-size: 1.08rem;
 }
 
 .brand-directory-card p {
