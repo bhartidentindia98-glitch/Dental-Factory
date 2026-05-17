@@ -894,10 +894,10 @@ async function getAdminSession() {
   }
 }
 
-async function loginAdmin(password) {
+async function loginAdmin(password, username = "") {
   return apiJson(ADMIN_LOGIN_API, {
     method: "POST",
-    body: JSON.stringify({ password }),
+    body: JSON.stringify({ username, password }),
   });
 }
 
@@ -2133,13 +2133,14 @@ function scheduleAdminAutoLogout() {
 
 async function initAdminAuth() {
   if (!adminAuth && !adminDashboard) return;
+  try {
+    await logoutAdmin();
+  } catch {}
   const session = await getAdminSession();
   renderAdminStorageNotice(session);
-  setAdminUnlocked(Boolean(session.authenticated));
-  if (session.authenticated) {
-    await refreshAdminOrders();
-  } else if (adminAuthMessage) {
-    adminAuthMessage.textContent = "Admin password required before product and order management.";
+  setAdminUnlocked(false);
+  if (adminAuthMessage) {
+    adminAuthMessage.textContent = "Admin ID and password required before product and order management.";
   }
 }
 
@@ -2588,12 +2589,13 @@ adminLoginForm?.addEventListener("submit", async (event) => {
   event.preventDefault();
   const form = event.currentTarget;
   const formData = new FormData(form);
+  const username = String(formData.get("username") || "").trim();
   const password = String(formData.get("password") || "");
   const submitButton = form.querySelector("button[type='submit']");
   submitButton.disabled = true;
-  if (adminAuthMessage) adminAuthMessage.textContent = "Checking admin password...";
+  if (adminAuthMessage) adminAuthMessage.textContent = "Checking admin ID and password...";
   try {
-    await loginAdmin(password);
+    await loginAdmin(password, username);
     const session = await getAdminSession();
     renderAdminStorageNotice(session);
     form.reset();

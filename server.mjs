@@ -10,6 +10,7 @@ const host = process.env.HOST || "0.0.0.0";
 const isProduction = process.env.NODE_ENV === "production";
 const localAdminPassword = "DentalFactory@2026";
 const adminPassword = process.env.ADMIN_PASSWORD || (isProduction ? "" : localAdminPassword);
+const adminUsername = String(process.env.ADMIN_USERNAME || "admin").trim();
 const localSessionSecret = "dental-factory-local-session";
 const sessionSecret = process.env.SESSION_SECRET || (isProduction ? crypto.randomBytes(32).toString("hex") : localSessionSecret);
 const razorpayKeyId = process.env.RAZORPAY_KEY_ID || "";
@@ -814,8 +815,12 @@ async function handleApi(req, res, reqUrl) {
       return;
     }
     const body = await readRequestJson(req, 16 * 1024);
+    if (!timingSafeStringEqual(body.username || "", adminUsername)) {
+      sendJson(res, 401, { error: "Wrong admin ID or password" }, { "Set-Cookie": clearAdminCookie() });
+      return;
+    }
     if (!timingSafeStringEqual(body.password || "", adminPassword)) {
-      sendJson(res, 401, { error: "Wrong admin password" });
+      sendJson(res, 401, { error: "Wrong admin ID or password" }, { "Set-Cookie": clearAdminCookie() });
       return;
     }
     sendJson(res, 200, { authenticated: true }, { "Set-Cookie": adminCookie(createAdminToken()) });
