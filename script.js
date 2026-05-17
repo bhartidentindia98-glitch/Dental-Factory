@@ -90,6 +90,7 @@ const productAdminMessage = $("#productAdminMessage");
 const clearProductForm = $("#clearProductForm");
 const resetProductForm = $("#resetProductForm");
 const productImagePreview = $("#productImagePreview");
+const productGalleryPreview = $("#productGalleryPreview");
 const brandButtons = $$(".brand-row button[data-brand], .brand-filter button[data-brand]");
 
 let activeFilter = "all";
@@ -369,9 +370,29 @@ function escapeHtml(value) {
   });
 }
 
+function parseImageList(value) {
+  if (Array.isArray(value)) {
+    return value.map((image) => String(image || "").trim()).filter(Boolean);
+  }
+  return String(value || "")
+    .split(/\r?\n|,/)
+    .map((image) => image.trim())
+    .filter(Boolean);
+}
+
+function uniqueImages(images) {
+  return Array.from(new Set(images.map((image) => String(image || "").trim()).filter(Boolean)));
+}
+
+function normalizeProductImages(product) {
+  const images = uniqueImages([product.image, ...parseImageList(product.images)]);
+  return images.length ? images : ["assets/hero-dental-shop.png"];
+}
+
 function normalizeAdminProduct(product) {
   const name = String(product.name || "").trim();
   const specs = product.specs && typeof product.specs === "object" ? product.specs : {};
+  const images = normalizeProductImages(product);
   return {
     id: String(product.id || slugifyProduct(name)).trim(),
     name,
@@ -381,7 +402,8 @@ function normalizeAdminProduct(product) {
     mrp: Number(product.mrp || product.price || 0),
     stock: Number(product.stock || 0),
     description: String(product.description || "Factory-direct dental product.").trim(),
-    image: String(product.image || "assets/hero-dental-shop.png").trim(),
+    image: images[0],
+    images,
     rating: String(product.rating || "4.5"),
     badge: String(product.badge || "Admin added"),
     delivery: String(product.delivery || "Dispatch estimate available after pincode.").trim(),
@@ -1689,10 +1711,11 @@ function resetAdminProductForm() {
   if (!productAdminForm) return;
   productAdminForm.reset();
   productAdminForm.elements.editing.value = "";
-  ["name", "brand", "price", "mrp", "stock", "hsn", "unit", "gstRate", "description", "image"].forEach((fieldName) => {
+  ["name", "brand", "price", "mrp", "stock", "hsn", "unit", "gstRate", "description", "image", "images"].forEach((fieldName) => {
     if (productAdminForm.elements[fieldName]) productAdminForm.elements[fieldName].value = "";
   });
   if (productImagePreview) productImagePreview.src = "assets/hero-dental-shop.png";
+  renderProductGalleryPreview([]);
   if (productAdminMessage) productAdminMessage.textContent = "Ready to add a new product.";
 }
 
@@ -1720,6 +1743,7 @@ function applyProductRowData(row, data) {
   row.dataset.stock = product.stock;
   row.dataset.description = product.description;
   row.dataset.image = product.image;
+  row.dataset.images = product.images.join("\n");
   row.dataset.hsn = product.hsn;
   row.dataset.unit = product.unit;
   row.dataset.gstRate = product.gstRate;
@@ -1739,6 +1763,7 @@ function adminProductsFromRows() {
       stock: row.dataset.stock,
       description: row.dataset.description,
       image: row.dataset.image,
+      images: row.dataset.images,
       hsn: row.dataset.hsn,
       unit: row.dataset.unit,
       gstRate: row.dataset.gstRate,
@@ -1879,15 +1904,39 @@ function renderPageBulkOffers(product) {
 
 function renderPageDetailThumbs(product) {
   if (!pageDetailThumbs) return;
-  const images = [product.image, "assets/air-rotor.png", "assets/clinic-chair.png"].filter(Boolean);
+  const images = normalizeProductImages(product);
   pageDetailThumbs.innerHTML = images
     .map(
       (image, index) =>
-        `<button class="${index === 0 ? "is-active" : ""}" type="button" aria-label="${index === 0 ? "Main product view" : "Product view"}"><img src="${escapeHtml(
+        `<button class="${index === 0 ? "is-active" : ""}" type="button" aria-label="${index === 0 ? "Main product view" : `Product view ${index + 1}`}"><img src="${escapeHtml(
           image
         )}" alt="" /></button>`
     )
     .join("");
+}
+
+function renderProductGalleryPreview(images) {
+  if (!productGalleryPreview) return;
+  const galleryImages = uniqueImages(images);
+  productGalleryPreview.innerHTML = galleryImages
+    .map((image) => `<img src="${escapeHtml(image)}" alt="Product gallery image preview" />`)
+    .join("");
+}
+
+function currentAdminFormImages() {
+  if (!productAdminForm) return [];
+  return normalizeProductImages({
+    image: productAdminForm.elements.image?.value || "",
+    images: productAdminForm.elements.images?.value || "",
+  }).filter((image) => image !== "assets/hero-dental-shop.png");
+}
+
+function updateAdminImagePreview() {
+  if (!productAdminForm) return;
+  const images = currentAdminFormImages();
+  const primaryImage = images[0] || productAdminForm.elements.image?.value.trim() || "assets/hero-dental-shop.png";
+  if (productImagePreview) productImagePreview.src = primaryImage;
+  renderProductGalleryPreview(images);
 }
 
 function renderProductDetailPage() {
@@ -2398,7 +2447,8 @@ document.addEventListener("click", async (event) => {
     productAdminForm.elements.gstRate.value = row.dataset.gstRate || DEFAULT_GST_RATE;
     productAdminForm.elements.description.value = row.dataset.description;
     productAdminForm.elements.image.value = row.dataset.image;
-    if (productImagePreview) productImagePreview.src = row.dataset.image || "assets/hero-dental-shop.png";
+    if (productAdminForm.elements.images) productAdminForm.elements.images.value = row.dataset.images || row.dataset.image || "";
+    updateAdminImagePreview();
     if (productAdminMessage) productAdminMessage.textContent = `Editing ${row.dataset.name}.`;
     productAdminForm.scrollIntoView({ behavior: "smooth", block: "center" });
   }
@@ -2796,22 +2846,32 @@ assignCallbackButton?.addEventListener("click", () => {
 });
 
 productAdminForm?.elements.image?.addEventListener("input", () => {
-  if (productImagePreview) {
-    productImagePreview.src = productAdminForm.elements.image.value.trim() || "assets/hero-dental-shop.png";
-  }
+  updateAdminImagePreview();
+});
+
+productAdminForm?.elements.images?.addEventListener("input", () => {
+  updateAdminImagePreview();
 });
 
 productAdminForm?.elements.imageUpload?.addEventListener("change", (event) => {
-  const file = event.currentTarget.files?.[0];
-  if (!file) return;
-  const reader = new FileReader();
-  reader.addEventListener("load", () => {
-    const imageSource = String(reader.result || "");
-    productAdminForm.elements.image.value = imageSource;
-    if (productImagePreview) productImagePreview.src = imageSource;
-    if (productAdminMessage) productAdminMessage.textContent = `${file.name} loaded as a preview image.`;
+  const files = Array.from(event.currentTarget.files || []);
+  if (!files.length) return;
+  Promise.all(
+    files.map(
+      (file) =>
+        new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.addEventListener("load", () => resolve(String(reader.result || "")));
+          reader.readAsDataURL(file);
+        })
+    )
+  ).then((uploadedImages) => {
+    const images = uniqueImages([...currentAdminFormImages(), ...uploadedImages]);
+    productAdminForm.elements.image.value = images[0] || "";
+    if (productAdminForm.elements.images) productAdminForm.elements.images.value = images.join("\n");
+    updateAdminImagePreview();
+    if (productAdminMessage) productAdminMessage.textContent = `${files.length} image${files.length === 1 ? "" : "s"} loaded for this product.`;
   });
-  reader.readAsDataURL(file);
 });
 
 productAdminForm?.addEventListener("submit", async (event) => {
@@ -2828,7 +2888,8 @@ productAdminForm?.addEventListener("submit", async (event) => {
     unit: String(formData.get("unit") || DEFAULT_UNIT).trim(),
     gstRate: Number(formData.get("gstRate") || DEFAULT_GST_RATE),
     description: formData.get("description").trim(),
-    image: formData.get("image").trim() || "assets/hero-dental-shop.png",
+    image: formData.get("image").trim() || parseImageList(formData.get("images"))[0] || "assets/hero-dental-shop.png",
+    images: uniqueImages([formData.get("image").trim(), ...parseImageList(formData.get("images"))]),
   };
   const editing = String(formData.get("editing") || "");
   const submitButton = event.currentTarget.querySelector("button[type='submit']");

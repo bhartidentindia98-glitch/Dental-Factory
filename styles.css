@@ -1540,6 +1540,22 @@ main {
   line-height: 1.4;
 }
 
+.product-gallery-preview {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.product-gallery-preview img {
+  width: 54px;
+  height: 44px;
+  object-fit: contain;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #f6faf8;
+}
+
 .product-admin-row {
   display: grid;
   grid-template-columns: minmax(190px, 1.2fr) minmax(120px, 0.8fr) 90px 64px 132px;

@@ -8,7 +8,7 @@
     <link rel="canonical" href="https://bhartidentindia.com/admin.html" />
     <meta name="robots" content="noindex, follow" />
     <link rel="preconnect" href="https://unpkg.com" />
-    <link rel="stylesheet" href="styles.css?v=20260517-products" />
+    <link rel="stylesheet" href="styles.css?v=20260517-gallery" />
     <link rel="icon" href="assets/dental-factory-logo-mark.png" />
   </head>
   <body>
@@ -145,12 +145,19 @@
                 <input name="image" autocomplete="off" />
               </label>
               <label class="full-field">
-                Upload image preview
-                <input name="imageUpload" type="file" accept="image/*" />
+                Gallery image URLs
+                <textarea name="images" autocomplete="off" placeholder="Optional: one image URL or file name per line"></textarea>
+              </label>
+              <label class="full-field">
+                Upload product images
+                <input name="imageUpload" type="file" accept="image/*" multiple />
               </label>
               <div class="product-image-preview full-field">
                 <img id="productImagePreview" src="assets/hero-dental-shop.png" alt="Product preview" />
-                <span>Preview updates when you choose an image or edit a product.</span>
+                <div>
+                  <span>Preview updates when you choose images or edit a product.</span>
+                  <div class="product-gallery-preview" id="productGalleryPreview" aria-label="Product gallery preview"></div>
+                </div>
               </div>
               <div class="form-actions full-field">
                 <button class="checkout-button" type="submit">Save product</button>
@@ -266,6 +273,6 @@
 </footer>
 
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
-    <script src="script.js?v=20260517-products"></script>
+    <script src="script.js?v=20260517-gallery"></script>
   </body>
 </html>

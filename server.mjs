@@ -34,7 +34,7 @@ const paymentAttemptsFile = path.join(dataDir, "payment-attempts.json");
 const adminCookieName = "df_admin_session";
 const adminSessionMaxAgeSeconds = adminSessionMinutes * 60;
 const maxPublicJsonBodyBytes = 256 * 1024;
-const maxAdminJsonBodyBytes = 6 * 1024 * 1024;
+const maxAdminJsonBodyBytes = 24 * 1024 * 1024;
 const rateLimitStore = new Map();
 const fileWriteQueues = new Map();
 const orderStatuses = ["Request received", "Callback done", "Packed", "Shipped", "Delivered", "Cancelled"];
@@ -262,6 +262,15 @@ function storageNotice() {
 
 function normalizeProduct(product) {
   const name = String(product.name || "").trim();
+  const rawImages = Array.isArray(product.images) ? product.images : String(product.images || "").split(/\r?\n|,/);
+  const images = Array.from(
+    new Set(
+      [product.image, ...rawImages]
+        .map((image) => String(image || "").trim())
+        .filter(Boolean)
+    )
+  );
+  const primaryImage = images[0] || "assets/hero-dental-shop.png";
   return {
     id: slugify(product.id || name),
     name,
@@ -272,7 +281,8 @@ function normalizeProduct(product) {
     stock: Number(product.stock || 0),
     rating: String(product.rating || "4.5"),
     badge: String(product.badge || "Admin added"),
-    image: String(product.image || "assets/hero-dental-shop.png").trim(),
+    image: primaryImage,
+    images: images.length ? images : [primaryImage],
     description: String(product.description || "Factory-direct dental product.").trim(),
     delivery: String(product.delivery || "Dispatch estimate available after pincode.").trim(),
     hsn: String(product.hsn || defaultHsnCode).trim(),
