@@ -733,11 +733,11 @@ function normalizeBrand(brand) {
 function loadAdminBrands() {
   try {
     const stored = JSON.parse(localStorage.getItem(ADMIN_BRANDS_KEY) || "null");
-    if (Array.isArray(stored) && stored.length) {
+    if (Array.isArray(stored)) {
       return stored.map(normalizeBrand).filter((brand) => brand.name);
     }
   } catch {}
-  return defaultBrands.map(normalizeBrand);
+  return [];
 }
 
 function saveAdminBrands(brands) {
@@ -784,29 +784,10 @@ function brandInitials(name) {
   return (words.length > 1 ? words.slice(0, 2).map((word) => word[0]).join("") : String(name || "").slice(0, 2)).toUpperCase();
 }
 
-function catalogBrandNames() {
-  const names = new Set();
-  Object.values(productDetails).forEach((product) => {
-    if (product.brand) names.add(product.brand);
-  });
-  loadAdminProducts().forEach((product) => {
-    if (product.brand) names.add(product.brand);
-  });
-  productCards.forEach((card) => {
-    if (card.dataset.brand) names.add(card.dataset.brand);
-  });
-  return Array.from(names);
-}
-
 function getAvailableBrands() {
   const byId = new Map();
   loadAdminBrands().map(normalizeBrand).forEach((brand) => {
     if (brand.name) byId.set(brand.id || slugifyProduct(brand.name), brand);
-  });
-  catalogBrandNames().forEach((name) => {
-    const id = slugifyProduct(name);
-    if (!id || byId.has(id)) return;
-    byId.set(id, normalizeBrand({ name, description: "Brand used in the current product catalog.", featured: true }));
   });
   return Array.from(byId.values()).sort((a, b) => a.name.localeCompare(b.name));
 }
@@ -948,7 +929,6 @@ function syncLocalAdminBrands(brands) {
 function hydrateAdminBrands() {
   const brands = loadAdminBrands();
   renderAdminBrandRows(brands);
-  renderBrandsOnStorefront(brands);
 }
 
 async function syncBrandsFromBackend() {
@@ -1485,12 +1465,9 @@ function productFromStaticDetail(name, detail) {
 }
 
 function allCatalogProducts() {
-  const savedProducts = loadAdminProducts();
-  const staticProducts = Object.entries(productDetails).map(([name, detail]) => productFromStaticDetail(name, detail));
   const productMap = new Map();
 
-  staticProducts.forEach((product) => productMap.set(product.id || slugifyProduct(product.name), product));
-  savedProducts.forEach((product) => productMap.set(product.id || slugifyProduct(product.name), product));
+  loadAdminProducts().forEach((product) => productMap.set(product.id || slugifyProduct(product.name), product));
 
   return Array.from(productMap.values()).filter((product) => product.name);
 }
@@ -2411,12 +2388,12 @@ function renderAdminProductRows(products) {
 }
 
 function syncLocalAdminProducts(products) {
-  saveAdminProducts(products);
+  const normalizedProducts = products.map(normalizeAdminProduct).filter((product) => product.name);
+  saveAdminProducts(normalizedProducts);
   if (productAdminTable) {
-    renderAdminProductRows(products);
+    renderAdminProductRows(normalizedProducts);
   }
-  renderBrandsOnStorefront();
-  renderAdminProductsOnStorefront();
+  renderAdminProductsOnStorefront(normalizedProducts);
   injectDetailButtons();
   setIcons();
   applyFilter(activeFilter);
@@ -2431,7 +2408,7 @@ function hydrateAdminProducts() {
     renderAdminProductRows(savedProducts);
     return;
   }
-  saveAdminProducts(adminProductsFromRows());
+  renderAdminProductRows([]);
 }
 
 async function syncProductsFromBackend() {
@@ -2472,19 +2449,18 @@ function applyProductCardData(card, product) {
   card.innerHTML = productCardTemplate(product);
 }
 
-function renderAdminProductsOnStorefront() {
+function renderAdminProductsOnStorefront(products = loadAdminProducts()) {
   if (!productGrid) return;
-  const products = loadAdminProducts();
-  const hasManagedCatalog = localStorage.getItem(ADMIN_PRODUCTS_KEY) !== null;
-  if (!products.length && !hasManagedCatalog) return;
-  const productNames = new Set(products.map((product) => product.name));
+  const normalizedProducts = products.map(normalizeAdminProduct).filter((product) => product.name);
+  const productNames = new Set(normalizedProducts.map((product) => product.name));
+  refreshProductCards();
   productCards.forEach((card) => {
     if (!productNames.has(card.dataset.name)) {
       card.remove();
     }
   });
   refreshProductCards();
-  products.forEach((product) => {
+  normalizedProducts.forEach((product) => {
     const existing = productCards.find((card) => card.dataset.name === product.name);
     if (existing) {
       applyProductCardData(existing, product);
@@ -3749,8 +3725,8 @@ resetAdminAdForm();
 resetAdminBrandForm();
 resetAdminProductForm();
 renderAdsOnStorefront();
-renderBrandsOnStorefront();
-renderAdminProductsOnStorefront();
+renderBrandsOnStorefront([]);
+renderAdminProductsOnStorefront([]);
 injectDetailButtons();
 renderProductDetailPage();
 ensureCategoryMenus();

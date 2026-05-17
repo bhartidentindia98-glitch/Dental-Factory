@@ -677,13 +677,12 @@ async function ensureDataFiles() {
   try {
     await fs.access(productsFile);
   } catch {
-    await writeJson(productsFile, defaultProducts.map(normalizeProduct));
+    await writeJson(productsFile, []);
   }
   try {
     await fs.access(brandsFile);
   } catch {
-    const products = await readJson(productsFile, defaultProducts);
-    await writeJson(brandsFile, mergeBrands(defaultBrands, products));
+    await writeJson(brandsFile, []);
   }
   try {
     await fs.access(adsFile);
@@ -765,7 +764,7 @@ async function writeJson(filePath, data) {
 async function checkoutPayloadFromBody(body) {
   const customer = normalizeOrderCustomer(body.customer || {});
   const submittedItems = Array.isArray(body.items) ? body.items.map(normalizeOrderItem).filter((item) => item.name) : [];
-  const catalog = (await readJson(productsFile, [])).map(normalizeProduct);
+  const catalog = asArray(await readJson(productsFile, [])).map(normalizeProduct);
   const productsByName = new Map(catalog.map((product) => [product.name.toLowerCase(), product]));
   const items = submittedItems.map((item) => {
     const catalogProduct = productsByName.get(item.name.toLowerCase());
@@ -1119,9 +1118,11 @@ async function handleApi(req, res, reqUrl) {
   }
 
   if (reqUrl.pathname === "/api/brands" && req.method === "GET") {
-    const brands = await readJson(brandsFile, defaultBrands);
-    const products = await readJson(productsFile, []);
-    sendJson(res, 200, mergeBrands(brands, products));
+    const brands = asArray(await readJson(brandsFile, []))
+      .map(normalizeBrand)
+      .filter((brand) => brand.name)
+      .sort((a, b) => a.name.localeCompare(b.name));
+    sendJson(res, 200, brands);
     return;
   }
 
@@ -1133,7 +1134,7 @@ async function handleApi(req, res, reqUrl) {
       sendJson(res, 400, { error: "Brand name is required" });
       return;
     }
-    const brands = (await readJson(brandsFile, defaultBrands)).map(normalizeBrand);
+    const brands = asArray(await readJson(brandsFile, [])).map(normalizeBrand);
     const editing = String(body.editing || brand.id || brand.name);
     const editingSlug = slugify(editing);
     const index = brands.findIndex((item) => item.id === editingSlug || item.name.toLowerCase() === editing.toLowerCase());
@@ -1152,13 +1153,13 @@ async function handleApi(req, res, reqUrl) {
     if (!requireAdmin(req, res)) return;
     const idOrName = decodeURIComponent(reqUrl.pathname.replace("/api/brands/", ""));
     const id = slugify(idOrName);
-    const products = (await readJson(productsFile, [])).map(normalizeProduct);
+    const products = asArray(await readJson(productsFile, [])).map(normalizeProduct);
     const brandInUse = products.some((product) => slugify(product.brand) === id || product.brand.toLowerCase() === idOrName.toLowerCase());
     if (brandInUse) {
       sendJson(res, 409, { error: "This brand is used by products. Change or delete those products before deleting the brand." });
       return;
     }
-    const brands = (await readJson(brandsFile, defaultBrands)).map(normalizeBrand);
+    const brands = asArray(await readJson(brandsFile, [])).map(normalizeBrand);
     const nextBrands = brands.filter((brand) => brand.id !== id && brand.name !== idOrName);
     await writeJson(brandsFile, nextBrands);
     sendJson(res, 200, { deleted: brands.length - nextBrands.length, id: idOrName });
@@ -1217,7 +1218,7 @@ async function handleApi(req, res, reqUrl) {
   }
 
   if (reqUrl.pathname === "/api/products" && req.method === "GET") {
-    const products = await readJson(productsFile, []);
+    const products = asArray(await readJson(productsFile, []));
     sendJson(res, 200, products.map(normalizeProduct));
     return;
   }
@@ -1231,7 +1232,7 @@ async function handleApi(req, res, reqUrl) {
       return;
     }
 
-    const products = (await readJson(productsFile, [])).map(normalizeProduct);
+    const products = asArray(await readJson(productsFile, [])).map(normalizeProduct);
     const editing = String(body.editing || product.id || product.name);
     const editingSlug = slugify(editing);
     const index = products.findIndex((item) => item.id === editingSlug || item.name === editing);
@@ -1252,7 +1253,7 @@ async function handleApi(req, res, reqUrl) {
     if (!requireAdmin(req, res)) return;
     const idOrName = decodeURIComponent(reqUrl.pathname.replace("/api/products/", ""));
     const id = slugify(idOrName);
-    const products = (await readJson(productsFile, [])).map(normalizeProduct);
+    const products = asArray(await readJson(productsFile, [])).map(normalizeProduct);
     const nextProducts = products.filter((product) => product.id !== id && product.name !== idOrName);
     await writeJson(productsFile, nextProducts);
     sendJson(res, 200, { deleted: products.length - nextProducts.length, id: idOrName });
