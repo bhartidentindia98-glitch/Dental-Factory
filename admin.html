@@ -8,7 +8,7 @@
     <link rel="canonical" href="https://bhartidentindia.com/admin.html" />
     <meta name="robots" content="noindex, follow" />
     <link rel="preconnect" href="https://unpkg.com" />
-    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="styles.css?v=20260517-products" />
     <link rel="icon" href="assets/dental-factory-logo-mark.png" />
   </head>
   <body>
@@ -90,15 +90,15 @@
             <button class="text-link" id="resetProductForm" type="button">New product</button>
           </div>
           <div class="product-admin-layout">
-            <form class="product-admin-form" id="productAdminForm">
+            <form class="product-admin-form" id="productAdminForm" autocomplete="off">
               <input type="hidden" name="editing" />
               <label>
                 Product name
-                <input name="name" required placeholder="Airotor Elite Handpiece" />
+                <input name="name" required autocomplete="off" />
               </label>
               <label>
                 Brand
-                <input name="brand" required placeholder="Waldent" />
+                <input name="brand" required autocomplete="off" />
               </label>
               <label>
                 Category
@@ -114,35 +114,35 @@
               </label>
               <label>
                 Selling price
-                <input name="price" required inputmode="numeric" placeholder="1899" />
+                <input name="price" required inputmode="numeric" autocomplete="off" />
               </label>
               <label>
                 MRP
-                <input name="mrp" required inputmode="numeric" placeholder="2299" />
+                <input name="mrp" required inputmode="numeric" autocomplete="off" />
               </label>
               <label>
                 Stock quantity
-                <input name="stock" required inputmode="numeric" placeholder="42" />
+                <input name="stock" required inputmode="numeric" autocomplete="off" />
               </label>
               <label>
                 HSN
-                <input name="hsn" placeholder="9018" />
+                <input name="hsn" autocomplete="off" />
               </label>
               <label>
                 Unit
-                <input name="unit" placeholder="Pcs" />
+                <input name="unit" autocomplete="off" />
               </label>
               <label>
                 GST %
-                <input name="gstRate" inputmode="decimal" placeholder="18" />
+                <input name="gstRate" inputmode="decimal" autocomplete="off" />
               </label>
               <label class="full-field">
                 Short description
-                <textarea name="description" required placeholder="Push button cartridge, clean spray, ceramic bearings."></textarea>
+                <textarea name="description" required autocomplete="off"></textarea>
               </label>
               <label class="full-field">
                 Image URL or file name
-                <input name="image" placeholder="assets/air-rotor.png" />
+                <input name="image" autocomplete="off" />
               </label>
               <label class="full-field">
                 Upload image preview
@@ -266,6 +266,6 @@
 </footer>
 
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
-    <script src="script.js"></script>
+    <script src="script.js?v=20260517-products"></script>
   </body>
 </html>

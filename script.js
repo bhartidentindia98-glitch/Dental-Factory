@@ -1,6 +1,12 @@
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => Array.from(document.querySelectorAll(selector));
 const formatMoney = (value) => `Rs. ${Number(value).toLocaleString("en-IN")}`;
+const slugifyProduct = (value) =>
+  String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
 
 const productGrid = $("#productGrid");
 let productCards = $$(".product-card");
@@ -38,6 +44,20 @@ const detailDelivery = $("#detailDelivery");
 const detailSpecs = $("#detailSpecs");
 const detailAddCart = $("#detailAddCart");
 const detailBuyNow = $("#detailBuyNow");
+const pageDetailTitle = $("#pageDetailTitle");
+const pageDetailImage = $("#pageDetailImage");
+const pageDetailBadge = $("#pageDetailBadge");
+const pageDetailDescription = $("#pageDetailDescription");
+const pageDetailRating = $("#pageDetailRating");
+const pageDetailPrice = $("#pageDetailPrice");
+const pageDetailMrp = $("#pageDetailMrp");
+const pageDetailDiscount = $("#pageDetailDiscount");
+const pageDetailDelivery = $("#pageDetailDelivery");
+const pageDetailSpecs = $("#pageDetailSpecs");
+const pageDetailAddCart = $("#pageDetailAddCart");
+const pageBulkOffers = $("#pageBulkOffers");
+const pageDetailThumbs = $("#pageDetailThumbs");
+const detailBreadcrumbCurrent = $("#detailBreadcrumbCurrent");
 const cartPageLines = $("#cartPageLines");
 const cartPageTotal = $("#cartPageTotal");
 const cartPageEmpty = $("#cartPageEmpty");
@@ -350,8 +370,11 @@ function escapeHtml(value) {
 }
 
 function normalizeAdminProduct(product) {
+  const name = String(product.name || "").trim();
+  const specs = product.specs && typeof product.specs === "object" ? product.specs : {};
   return {
-    name: String(product.name || "").trim(),
+    id: String(product.id || slugifyProduct(name)).trim(),
+    name,
     brand: String(product.brand || "Dental Factory").trim(),
     category: String(product.category || "Equipment").trim(),
     price: Number(product.price || 0),
@@ -365,6 +388,7 @@ function normalizeAdminProduct(product) {
     hsn: String(product.hsn || DEFAULT_HSN).trim(),
     unit: String(product.unit || DEFAULT_UNIT).trim(),
     gstRate: Number(product.gstRate ?? DEFAULT_GST_RATE),
+    specs,
   };
 }
 
@@ -905,9 +929,34 @@ async function logoutAdmin() {
   return apiJson(ADMIN_LOGOUT_API, { method: "POST" });
 }
 
-function getCatalogProduct(name) {
-  const adminProduct = loadAdminProducts().find((product) => product.name === name);
-  return adminProduct || productDetails[name] || {};
+function productFromStaticDetail(name, detail) {
+  return normalizeAdminProduct({ name, ...detail });
+}
+
+function allCatalogProducts() {
+  const savedProducts = loadAdminProducts();
+  const staticProducts = Object.entries(productDetails).map(([name, detail]) => productFromStaticDetail(name, detail));
+  const productMap = new Map();
+
+  staticProducts.forEach((product) => productMap.set(product.id || slugifyProduct(product.name), product));
+  savedProducts.forEach((product) => productMap.set(product.id || slugifyProduct(product.name), product));
+
+  return Array.from(productMap.values()).filter((product) => product.name);
+}
+
+function getCatalogProduct(identifier) {
+  const normalized = String(identifier || "").trim();
+  const slug = slugifyProduct(normalized);
+  return (
+    allCatalogProducts().find((product) => product.name === normalized || product.id === normalized || slugifyProduct(product.name) === slug || product.id === slug) ||
+    {}
+  );
+}
+
+function productDetailUrl(identifier) {
+  const product = getCatalogProduct(identifier);
+  const key = product.id || slugifyProduct(product.name || identifier);
+  return `product-detail.html?product=${encodeURIComponent(key)}`;
 }
 
 function refreshProductCards() {
@@ -1479,24 +1528,27 @@ function hideCheckout() {
 }
 
 function productFromCard(name) {
-  const card = productCards.find((item) => item.dataset.name === name);
-  const detail = getCatalogProduct(name);
+  const card = productCards.find((item) => item.dataset.name === name || item.dataset.productId === name);
+  const detail = getCatalogProduct(card?.dataset.productId || name);
   if (!card) return Object.keys(detail).length ? { name, ...detail } : null;
 
   return {
-    name,
+    name: detail.name || name,
     price: Number(card.dataset.price),
     rating: card.dataset.rating,
     brand: card.dataset.brand,
     image: card.querySelector("img")?.getAttribute("src") || detail.image,
     alt: card.querySelector("img")?.getAttribute("alt") || detail.alt,
-    description: card.querySelector("p")?.textContent.trim() || detail.description,
+    description: detail.description || card.querySelector("p")?.textContent.trim(),
     orders: card.querySelector(".rating span")?.textContent.trim() || "Popular item",
     ...detail,
   };
 }
 
 function openProductDetails(name) {
+  window.location.href = productDetailUrl(name);
+  return;
+
   if (!productModal) {
     window.location.href = "product-detail.html";
     return;
@@ -1568,15 +1620,13 @@ function showSlide(index) {
 function injectDetailButtons() {
   refreshProductCards();
   productCards.forEach((card) => {
-    if (card.querySelector(".detail-button")) return;
-    const addButton = card.querySelector(".add-cart");
-    if (!addButton) return;
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "detail-button";
-    button.dataset.product = card.dataset.name;
-    button.innerHTML = '<i data-lucide="info"></i> Details';
-    addButton.before(button);
+    card.querySelector(".detail-button")?.remove();
+    const product = getCatalogProduct(card.dataset.productId || card.dataset.name);
+    const productId = product.id || slugifyProduct(card.dataset.name);
+    card.dataset.productId = productId;
+    card.setAttribute("role", "link");
+    card.setAttribute("tabindex", "0");
+    card.setAttribute("aria-label", `Open ${card.dataset.name} details`);
   });
 }
 
@@ -1639,6 +1689,9 @@ function resetAdminProductForm() {
   if (!productAdminForm) return;
   productAdminForm.reset();
   productAdminForm.elements.editing.value = "";
+  ["name", "brand", "price", "mrp", "stock", "hsn", "unit", "gstRate", "description", "image"].forEach((fieldName) => {
+    if (productAdminForm.elements[fieldName]) productAdminForm.elements[fieldName].value = "";
+  });
   if (productImagePreview) productImagePreview.src = "assets/hero-dental-shop.png";
   if (productAdminMessage) productAdminMessage.textContent = "Ready to add a new product.";
 }
@@ -1658,6 +1711,7 @@ function productRowTemplate(data) {
 
 function applyProductRowData(row, data) {
   const product = normalizeAdminProduct(data);
+  row.dataset.id = product.id;
   row.dataset.name = product.name;
   row.dataset.brand = product.brand;
   row.dataset.category = product.category;
@@ -1677,6 +1731,7 @@ function adminProductsFromRows() {
   return $$("#productAdminTable .product-admin-row:not(.product-admin-head)").map((row) =>
     normalizeAdminProduct({
       name: row.dataset.name,
+      id: row.dataset.id,
       brand: row.dataset.brand,
       category: row.dataset.category,
       price: row.dataset.price,
@@ -1737,7 +1792,6 @@ function productCardTemplate(product) {
     <div class="product-meta">
       <span class="badge">${escapeHtml(product.badge)}</span>
       <h3>${escapeHtml(product.name)}</h3>
-      <p>${escapeHtml(product.description)}</p>
       <div class="rating"><i data-lucide="star"></i> ${escapeHtml(product.rating)} <span>${escapeHtml(product.stock)} in stock</span></div>
       <div class="price-row">
         <strong>${formatMoney(product.price)}</strong>
@@ -1751,18 +1805,23 @@ function productCardTemplate(product) {
 }
 
 function applyProductCardData(card, product) {
+  card.dataset.productId = product.id || slugifyProduct(product.name);
   card.dataset.name = product.name;
   card.dataset.brand = product.brand;
   card.dataset.category = `${product.category.toLowerCase()} deals best`;
   card.dataset.price = product.price;
   card.dataset.rating = product.rating;
+  card.setAttribute("role", "link");
+  card.setAttribute("tabindex", "0");
+  card.setAttribute("aria-label", `Open ${product.name} details`);
   card.innerHTML = productCardTemplate(product);
 }
 
 function renderAdminProductsOnStorefront() {
   if (!productGrid) return;
   const products = loadAdminProducts();
-  if (!products.length) return;
+  const hasManagedCatalog = localStorage.getItem(ADMIN_PRODUCTS_KEY) !== null;
+  if (!products.length && !hasManagedCatalog) return;
   const productNames = new Set(products.map((product) => product.name));
   productCards.forEach((card) => {
     if (!productNames.has(card.dataset.name)) {
@@ -1782,6 +1841,92 @@ function renderAdminProductsOnStorefront() {
     productGrid.appendChild(card);
   });
   refreshProductCards();
+}
+
+function productDiscount(product) {
+  const mrp = Number(product.mrp || 0);
+  const price = Number(product.price || 0);
+  if (!mrp || !price || mrp <= price) return "";
+  return `${Math.round(((mrp - price) / mrp) * 100)}% off`;
+}
+
+function defaultProductSpecs(product) {
+  return {
+    Brand: product.brand || "Dental Factory",
+    Category: product.category || "Dental product",
+    HSN: product.hsn || DEFAULT_HSN,
+    GST: `${Number(product.gstRate ?? DEFAULT_GST_RATE)}%`,
+  };
+}
+
+function renderPageBulkOffers(product) {
+  if (!pageBulkOffers) return;
+  const tiers = [
+    { qty: 2, discount: 1.34 },
+    { qty: 5, discount: 2.68 },
+    { qty: 10, discount: 4.7 },
+    { qty: 50, discount: 6.71 },
+  ];
+  pageBulkOffers.innerHTML = tiers
+    .map((tier) => {
+      const tierPrice = Math.max(1, Math.round(Number(product.price || 0) * (1 - tier.discount / 100)));
+      return `<button type="button" data-offer-qty="${tier.qty}"><small>Extra ${tier.discount}% off</small><strong>Buy ${tier.qty}+ for ${formatMoney(
+        tierPrice
+      )} each</strong></button>`;
+    })
+    .join("");
+}
+
+function renderPageDetailThumbs(product) {
+  if (!pageDetailThumbs) return;
+  const images = [product.image, "assets/air-rotor.png", "assets/clinic-chair.png"].filter(Boolean);
+  pageDetailThumbs.innerHTML = images
+    .map(
+      (image, index) =>
+        `<button class="${index === 0 ? "is-active" : ""}" type="button" aria-label="${index === 0 ? "Main product view" : "Product view"}"><img src="${escapeHtml(
+          image
+        )}" alt="" /></button>`
+    )
+    .join("");
+}
+
+function renderProductDetailPage() {
+  if (!pageDetailTitle) return;
+  const identifier = searchParams().get("product") || searchParams().get("id") || searchParams().get("name") || pageDetailTitle.textContent;
+  const product = getCatalogProduct(identifier);
+  if (!product.name) return;
+
+  document.title = `${product.name} | Dental Factory`;
+  if (detailBreadcrumbCurrent) detailBreadcrumbCurrent.textContent = product.name;
+  if (pageDetailTitle) pageDetailTitle.textContent = product.name;
+  if (pageDetailImage) {
+    pageDetailImage.src = product.image;
+    pageDetailImage.alt = product.name;
+  }
+  if (pageDetailBadge) pageDetailBadge.textContent = product.badge || productDiscount(product) || "Admin added";
+  if (pageDetailDescription) pageDetailDescription.textContent = product.description || "Factory-direct dental product.";
+  if (pageDetailRating) {
+    pageDetailRating.innerHTML = `<i data-lucide="star"></i> ${escapeHtml(product.rating || "4.5")} <span>${escapeHtml(
+      product.stock ? `${product.stock} in stock` : product.brand || ""
+    )}</span>`;
+  }
+  if (pageDetailPrice) pageDetailPrice.textContent = formatMoney(product.price);
+  if (pageDetailMrp) pageDetailMrp.textContent = Number(product.mrp || 0) > Number(product.price || 0) ? formatMoney(product.mrp) : "";
+  if (pageDetailDiscount) pageDetailDiscount.textContent = productDiscount(product);
+  if (pageDetailDelivery) pageDetailDelivery.textContent = product.delivery || "Dispatch estimate available after pincode.";
+  if (pageDetailAddCart) {
+    pageDetailAddCart.dataset.product = product.name;
+    pageDetailAddCart.dataset.price = String(product.price);
+  }
+  if (pageDetailSpecs) {
+    const specs = Object.keys(product.specs || {}).length ? product.specs : defaultProductSpecs(product);
+    pageDetailSpecs.innerHTML = Object.entries(specs)
+      .map(([label, value]) => `<div><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`)
+      .join("");
+  }
+  renderPageBulkOffers(product);
+  renderPageDetailThumbs(product);
+  setIcons();
 }
 
 function formatDateTime(value) {
@@ -2185,6 +2330,12 @@ document.addEventListener("click", async (event) => {
     openProductDetails(detailButton.dataset.product);
   }
 
+  const clickedProductCard = event.target.closest(".product-card");
+  if (clickedProductCard && !event.target.closest("button, a, input, select, textarea, label")) {
+    window.location.href = productDetailUrl(clickedProductCard.dataset.productId || clickedProductCard.dataset.name);
+    return;
+  }
+
   const membershipCard = event.target.closest(".membership-card[data-membership-type]");
   if (membershipCard) {
     const selectedType = membershipCard.dataset.membershipType || "dentist";
@@ -2256,11 +2407,12 @@ document.addEventListener("click", async (event) => {
   if (deleteProductButton && productAdminTable) {
     const row = deleteProductButton.closest(".product-admin-row");
     const productName = row?.dataset.name || "Product";
+    const productId = row?.dataset.id || slugifyProduct(productName);
     deleteProductButton.disabled = true;
     if (productAdminMessage) productAdminMessage.textContent = `Deleting ${productName} from backend...`;
     try {
-      await deleteBackendProduct(productName);
-      syncLocalAdminProducts(loadAdminProducts().filter((product) => product.name !== productName));
+      await deleteBackendProduct(productId || productName);
+      syncLocalAdminProducts(loadAdminProducts().filter((product) => product.name !== productName && product.id !== productId));
       if (productAdminForm?.elements.editing.value === productName) {
         resetAdminProductForm();
       }
@@ -2401,6 +2553,14 @@ document.addEventListener("keydown", (event) => {
   hideProductDetails();
   hideAccount();
   closeDeliveryLocation();
+});
+
+document.addEventListener("keydown", (event) => {
+  if (event.key !== "Enter" && event.key !== " ") return;
+  const card = event.target.closest?.(".product-card");
+  if (!card || event.target.closest("button, a, input, select, textarea, label")) return;
+  event.preventDefault();
+  window.location.href = productDetailUrl(card.dataset.productId || card.dataset.name);
 });
 
 if (detailBuyNow) {
@@ -2685,7 +2845,7 @@ productAdminForm?.addEventListener("submit", async (event) => {
       products.push(savedProduct);
     }
     syncLocalAdminProducts(products);
-    productAdminForm.elements.editing.value = savedProduct.name;
+    resetAdminProductForm();
     if (productAdminMessage) productAdminMessage.textContent = `${savedProduct.name} saved to backend.`;
   } catch (error) {
     if (productAdminMessage) productAdminMessage.textContent = `Product save failed: ${error.message}. Start the backend server and try again.`;
@@ -2709,8 +2869,10 @@ $$(".membership-card[data-membership-type]").forEach((card) => {
 $$('input[name="type"]').forEach((input) => input.addEventListener("change", updateAccountTypeLabels));
 updateAccountTypeLabels();
 hydrateAdminProducts();
+resetAdminProductForm();
 renderAdminProductsOnStorefront();
 injectDetailButtons();
+renderProductDetailPage();
 setIcons();
 updateDeliveryUi();
 renderCart();
@@ -2720,6 +2882,9 @@ loadPaymentConfig();
 const initialSearch = searchParams().get("search");
 if (initialSearch && searchInput) searchInput.value = initialSearch;
 applyFilter("all");
-syncProductsFromBackend().then(() => renderAdminMetrics(latestAdminOrders));
+syncProductsFromBackend().then(() => {
+  renderProductDetailPage();
+  renderAdminMetrics(latestAdminOrders);
+});
 initAdminAuth();
 autoTrackInitialOrder();

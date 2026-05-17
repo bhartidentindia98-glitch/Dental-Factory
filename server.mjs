@@ -1033,7 +1033,11 @@ async function handleStatic(req, res, reqUrl) {
 
   try {
     const data = await fs.readFile(filePath);
-    res.writeHead(200, withSecurityHeaders({ "Content-Type": mimeTypes.get(extension) || "application/octet-stream" }));
+    const headers = {
+      "Content-Type": mimeTypes.get(extension) || "application/octet-stream",
+      "Cache-Control": [".html", ".css", ".js"].includes(extension) ? "no-store, max-age=0" : "public, max-age=3600",
+    };
+    res.writeHead(200, withSecurityHeaders(headers));
     res.end(data);
   } catch {
     sendText(res, 404, "Not found");

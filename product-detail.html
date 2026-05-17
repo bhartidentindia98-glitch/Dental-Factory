@@ -7,7 +7,7 @@
     <meta name="description" content="Product detail page for a dental endomotor with apex mode, torque presets, and clinic purchase support." />
     <link rel="canonical" href="https://bhartidentindia.com/product-detail.html" />
     <link rel="preconnect" href="https://unpkg.com" />
-    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="styles.css?v=20260517-products" />
     <link rel="icon" href="assets/dental-factory-logo-mark.png" />
   </head>
   <body>
@@ -60,14 +60,14 @@
           <span>/</span>
           <a href="products.html">Products</a>
           <span>/</span>
-          <span>Endomotor X2</span>
+          <span id="detailBreadcrumbCurrent">Endomotor X2</span>
         </nav>
       </section>
 
       <section class="detail-page">
         <div class="detail-gallery">
-          <img data-gallery-main src="assets/endomotor.png" alt="Endomotor X2 With Apex Mode" />
-          <div class="thumbnail-row" aria-label="Product gallery">
+          <img id="pageDetailImage" data-gallery-main src="assets/endomotor.png" alt="Endomotor X2 With Apex Mode" />
+          <div class="thumbnail-row" id="pageDetailThumbs" aria-label="Product gallery">
             <button class="is-active" type="button" aria-label="Main product view"><img src="assets/endomotor.png" alt="" /></button>
             <button type="button" aria-label="Kit view"><img src="assets/air-rotor.png" alt="" /></button>
             <button type="button" aria-label="Clinic setup view"><img src="assets/clinic-chair.png" alt="" /></button>
@@ -75,23 +75,25 @@
         </div>
 
         <article class="purchase-panel">
-          <span class="badge">Clinic pick</span>
-          <h1>Endomotor X2 With Apex Mode</h1>
-          <p>Programmable torque, auto reverse, memory presets, and apex mode for daily endodontic procedures.</p>
-          <div class="detail-rating"><i data-lucide="star"></i> 4.6 <span>540 orders</span></div>
-          <div class="detail-price"><strong>Rs. 7,999</strong><small>Rs. 9,450</small></div>
-          <div class="detail-stock"><i data-lucide="truck"></i><span>Priority dispatch with setup callback</span></div>
-          <div class="detail-specs">
+          <span class="badge" id="pageDetailBadge">Clinic pick</span>
+          <h1 id="pageDetailTitle">Endomotor X2 With Apex Mode</h1>
+          <p id="pageDetailDescription">Programmable torque, auto reverse, memory presets, and apex mode for daily endodontic procedures.</p>
+          <div class="detail-rating" id="pageDetailRating"><i data-lucide="star"></i> 4.6 <span>540 orders</span></div>
+          <div class="detail-price"><strong id="pageDetailPrice">Rs. 7,999</strong><small id="pageDetailMrp">Rs. 9,450</small><span id="pageDetailDiscount">15% off</span></div>
+          <div class="bulk-offers" id="pageBulkOffers" aria-label="Quantity offers"></div>
+          <div class="detail-buy-row">
+            <div class="delivery-chips">
+              <span><i data-lucide="truck"></i><b id="pageDetailDelivery">Priority dispatch with setup callback</b></span>
+              <span><i data-lucide="rotate-ccw"></i>10-Days Returnable</span>
+              <span><i data-lucide="badge-check"></i>COD</span>
+            </div>
+            <button class="add-cart detail-add-button" id="pageDetailAddCart" type="button" data-product="Endomotor X2 With Apex Mode" data-price="7999">ADD</button>
+          </div>
+          <div class="detail-specs" id="pageDetailSpecs">
             <div><span>Brand</span><strong>Woodpecker</strong></div>
             <div><span>Modes</span><strong>Auto reverse</strong></div>
             <div><span>Memory</span><strong>9 presets</strong></div>
             <div><span>Warranty</span><strong>1 year</strong></div>
-          </div>
-          <div class="detail-actions">
-            <button class="add-cart" type="button" data-product="Endomotor X2 With Apex Mode" data-price="7999">
-              <i data-lucide="shopping-bag"></i> Add to cart
-            </button>
-            <button class="checkout-button" data-buy-now type="button" data-product="Endomotor X2 With Apex Mode" data-price="7999">Buy now</button>
           </div>
         </article>
       </section>
@@ -133,7 +135,6 @@
             <div class="product-meta">
               <span class="badge">Hot deal</span>
               <h3>Apex Locator Pro</h3>
-              <p>Compact apex measurement unit with clear chairside display.</p>
               <div class="rating"><i data-lucide="star"></i> 4.5 <span>410 orders</span></div>
               <div class="price-row"><strong>Rs. 5,199</strong><small>Rs. 6,250</small></div>
               <button class="add-cart" type="button" data-product="Apex Locator Pro" data-price="5199"><i data-lucide="shopping-bag"></i> Add</button>
@@ -144,7 +145,6 @@
             <div class="product-meta">
               <span class="badge">Installation support</span>
               <h3>Class B Autoclave 18L</h3>
-              <p>Pre-vacuum cycles, printer-ready, tray set included.</p>
               <div class="rating"><i data-lucide="star"></i> 4.5 <span>210 orders</span></div>
               <div class="price-row"><strong>Rs. 42,999</strong><small>Rs. 49,999</small></div>
               <button class="add-cart" type="button" data-product="Class B Autoclave 18L" data-price="42999"><i data-lucide="shopping-bag"></i> Add</button>
@@ -155,7 +155,6 @@
             <div class="product-meta">
               <span class="badge">Bulk saver</span>
               <h3>Disposable Dental Bibs Pack</h3>
-              <p>Water-resistant patient bibs for daily operatory turnover.</p>
               <div class="rating"><i data-lucide="star"></i> 4.1 <span>1.6k orders</span></div>
               <div class="price-row"><strong>Rs. 349</strong><small>Rs. 520</small></div>
               <button class="add-cart" type="button" data-product="Disposable Dental Bibs Pack" data-price="349"><i data-lucide="shopping-bag"></i> Add</button>
@@ -213,6 +212,6 @@
 </footer>
 
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
-    <script src="script.js"></script>
+    <script src="script.js?v=20260517-products"></script>
   </body>
 </html>
