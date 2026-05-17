@@ -8,7 +8,7 @@
     <link rel="canonical" href="https://bhartidentindia.com/admin.html" />
     <meta name="robots" content="noindex, follow" />
     <link rel="preconnect" href="https://unpkg.com" />
-    <link rel="stylesheet" href="styles.css?v=20260517-adimages" />
+    <link rel="stylesheet" href="styles.css?v=20260517-uploadclean" />
     <link rel="icon" href="assets/dental-factory-logo-mark.png?v=20260517-logo" />
   </head>
   <body>
@@ -94,6 +94,7 @@
           <div class="product-admin-layout ad-admin-layout">
             <form class="product-admin-form" id="adAdminForm" autocomplete="off">
               <input type="hidden" name="editing" />
+              <input type="hidden" name="image" />
               <label>
                 Ad title
                 <input name="title" required autocomplete="off" />
@@ -105,10 +106,6 @@
                   <option value="home-banner">Home page banner</option>
                   <option value="products-top">Products page top</option>
                 </select>
-              </label>
-              <label>
-                Banner image URL or file name
-                <input name="image" autocomplete="off" />
               </label>
               <label>
                 Upload banner photo
@@ -160,13 +157,10 @@
           <div class="product-admin-layout brand-admin-layout">
             <form class="product-admin-form" id="brandAdminForm" autocomplete="off">
               <input type="hidden" name="editing" />
+              <input type="hidden" name="logo" />
               <label>
                 Brand name
                 <input name="name" required autocomplete="off" />
-              </label>
-              <label>
-                Logo URL or file name
-                <input name="logo" autocomplete="off" />
               </label>
               <label class="full-field">
                 Upload brand logo/photo
@@ -186,7 +180,7 @@
             <div class="product-admin-table brand-admin-table" id="brandAdminTable">
               <div class="product-admin-row product-admin-head brand-admin-row brand-admin-head">
                 <span>Brand</span>
-                <span>Logo</span>
+                <span>Preview</span>
                 <span>Status</span>
                 <span>Action</span>
               </div>
@@ -385,6 +379,6 @@
 </footer>
 
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
-    <script src="script.js?v=20260517-adimages"></script>
+    <script src="script.js?v=20260517-uploadclean"></script>
   </body>
 </html>

@@ -862,7 +862,7 @@ function renderBrandsOnStorefront(brands = getAvailableBrands()) {
 function brandRowTemplate(brand) {
   return `
     <strong>${escapeHtml(brand.name)}<small>${brand.logo ? "Logo uploaded" : "No logo uploaded"}</small></strong>
-    <span>${brand.logo ? escapeHtml(brand.logo) : "No logo"}</span>
+    <span class="admin-logo-cell">${brand.logo ? `<img src="${escapeHtml(brand.logo)}" alt="${escapeHtml(brand.name)} logo" />` : "No logo"}</span>
     <b>${brand.featured ? "Featured" : "Hidden"}</b>
     <div class="row-actions">
       <button type="button" data-edit-brand>Edit</button>
@@ -1324,7 +1324,7 @@ function ensureAccountModal() {
   if (!accountModal.dataset.accountWired) {
     accountModal.dataset.accountWired = "true";
     accountModal.addEventListener("click", (event) => {
-      if (event.target === accountModal || event.target.closest("[data-close-account]") || event.target.id === "closeAccount") {
+      if (event.target === accountModal || event.target.closest("[data-close-account], #closeAccount")) {
         hideAccount();
         return;
       }
