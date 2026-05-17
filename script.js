@@ -538,7 +538,7 @@ function loadAdminAds() {
     const stored = JSON.parse(localStorage.getItem(ADMIN_ADS_KEY) || "null");
     if (Array.isArray(stored)) return stored.map(normalizeAd).filter((ad) => ad.title);
   } catch {}
-  return defaultAds.map(normalizeAd);
+  return [];
 }
 
 function saveAdminAds(ads) {
@@ -609,24 +609,19 @@ function adSlideTemplate(ad) {
 function startAdSlider(slot) {
   if (slot.adTimer) window.clearInterval(slot.adTimer);
   const slides = Array.from(slot.querySelectorAll(".promo-slide"));
-  const dots = Array.from(slot.querySelectorAll("[data-ad-dot]"));
   let index = 0;
   const show = (nextIndex) => {
     if (!slides.length) return;
     index = (nextIndex + slides.length) % slides.length;
     slides.forEach((slide, slideIndex) => slide.classList.toggle("is-active", slideIndex === index));
-    dots.forEach((dot, dotIndex) => dot.classList.toggle("is-active", dotIndex === index));
   };
   show(0);
   if (slides.length > 1) {
     slot.adTimer = window.setInterval(() => show(index + 1), 5000);
   }
-  dots.forEach((dot, dotIndex) => {
-    dot.addEventListener("click", () => show(dotIndex));
-  });
 }
 
-function renderAdsOnStorefront(ads = loadAdminAds()) {
+function renderAdsOnStorefront(ads = []) {
   if (!adSlots.length) return;
   const activeAds = ads
     .map(normalizeAd)
@@ -637,21 +632,16 @@ function renderAdsOnStorefront(ads = loadAdminAds()) {
     const placement = slot.dataset.adSlot || "home-banner";
     const slotAds = activeAds.filter((ad) => ad.placement === placement);
     if (!slotAds.length) {
-      if (slot.dataset.adDynamic === "true") {
-        slot.innerHTML = "";
-        slot.hidden = true;
-      }
+      if (slot.adTimer) window.clearInterval(slot.adTimer);
+      slot.innerHTML = "";
+      slot.hidden = true;
+      slot.dataset.adDynamic = "true";
       return;
     }
     if (slot.adTimer) window.clearInterval(slot.adTimer);
     slot.hidden = false;
     slot.dataset.adDynamic = "true";
-    slot.innerHTML = `
-      ${slotAds.map(adSlideTemplate).join("")}
-      <div class="ad-dots" aria-label="Ad controls">
-        ${slotAds.map((_, index) => `<button type="button" data-ad-dot="${index}" aria-label="Show ad ${index + 1}"></button>`).join("")}
-      </div>
-    `;
+    slot.innerHTML = slotAds.map(adSlideTemplate).join("");
     startAdSlider(slot);
   });
   setIcons();
@@ -716,7 +706,6 @@ function syncLocalAdminAds(ads) {
 function hydrateAdminAds() {
   const ads = loadAdminAds();
   renderAdminAdRows(ads);
-  renderAdsOnStorefront(ads);
 }
 
 async function syncAdsFromBackend() {

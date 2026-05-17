@@ -279,6 +279,12 @@ const defaultAds = [
     priority: 3,
   },
 ];
+const retiredDefaultAdIds = new Set(defaultAds.map((ad) => slugify(ad.id || `${ad.placement}-${ad.title}`)));
+
+function isRetiredDefaultAd(ad) {
+  const id = slugify(ad.id || `${ad.placement || "home-banner"}-${ad.title || ""}`);
+  return retiredDefaultAdIds.has(id) && !ad.updatedAt;
+}
 
 function parseCsvEnv(value) {
   return String(value || "")
@@ -596,7 +602,7 @@ async function ensureDataFiles() {
   try {
     await fs.access(adsFile);
   } catch {
-    await writeJson(adsFile, defaultAds);
+    await writeJson(adsFile, []);
   }
   try {
     await fs.access(ordersFile);
@@ -1045,7 +1051,7 @@ async function handleApi(req, res, reqUrl) {
   }
 
   if (reqUrl.pathname === "/api/ads" && req.method === "GET") {
-    const ads = (await readJson(adsFile, [])).map(normalizeAd);
+    const ads = (await readJson(adsFile, [])).filter((ad) => !isRetiredDefaultAd(ad)).map(normalizeAd);
     const publicAds = ads
       .filter((ad) => ad.active && ad.title)
       .sort((a, b) => a.priority - b.priority)
@@ -1056,7 +1062,7 @@ async function handleApi(req, res, reqUrl) {
 
   if (reqUrl.pathname === "/api/admin/ads" && req.method === "GET") {
     if (!requireAdmin(req, res)) return;
-    const ads = (await readJson(adsFile, [])).map(normalizeAd).filter((ad) => ad.title);
+    const ads = (await readJson(adsFile, [])).filter((ad) => !isRetiredDefaultAd(ad)).map(normalizeAd).filter((ad) => ad.title);
     sendJson(res, 200, ads.sort((a, b) => a.priority - b.priority));
     return;
   }
@@ -1069,7 +1075,7 @@ async function handleApi(req, res, reqUrl) {
       sendJson(res, 400, { error: "Ad title is required" });
       return;
     }
-    const ads = (await readJson(adsFile, [])).map(normalizeAd).filter((item) => item.title);
+    const ads = (await readJson(adsFile, [])).filter((item) => !isRetiredDefaultAd(item)).map(normalizeAd).filter((item) => item.title);
     const editing = String(body.editing || ad.id || ad.title);
     const editingSlug = slugify(editing);
     const index = ads.findIndex((item) => item.id === editingSlug || item.title.toLowerCase() === editing.toLowerCase());
@@ -1088,7 +1094,7 @@ async function handleApi(req, res, reqUrl) {
     if (!requireAdmin(req, res)) return;
     const idOrTitle = decodeURIComponent(reqUrl.pathname.replace("/api/admin/ads/", ""));
     const id = slugify(idOrTitle);
-    const ads = (await readJson(adsFile, [])).map(normalizeAd).filter((ad) => ad.title);
+    const ads = (await readJson(adsFile, [])).filter((ad) => !isRetiredDefaultAd(ad)).map(normalizeAd).filter((ad) => ad.title);
     const nextAds = ads.filter((ad) => ad.id !== id && ad.title !== idOrTitle);
     await writeJson(adsFile, nextAds);
     sendJson(res, 200, { deleted: ads.length - nextAds.length, id: idOrTitle });

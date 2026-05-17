@@ -589,29 +589,6 @@ main {
   height: 122px;
 }
 
-.ad-dots {
-  position: absolute;
-  right: 18px;
-  bottom: 16px;
-  z-index: 3;
-  display: flex;
-  gap: 7px;
-}
-
-.ad-dots button {
-  width: 9px;
-  height: 9px;
-  padding: 0;
-  border: 0;
-  border-radius: 999px;
-  background: rgba(18, 35, 44, 0.24);
-}
-
-.ad-dots button.is-active {
-  width: 24px;
-  background: var(--sea);
-}
-
 .slider-control.prev {
   left: 12px;
 }
