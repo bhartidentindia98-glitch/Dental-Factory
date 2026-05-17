@@ -36,12 +36,14 @@ const paymentAttemptsFile = path.join(dataDir, "payment-attempts.json");
 const adminCookieName = "df_admin_session";
 const adminSessionMaxAgeSeconds = adminSessionMinutes * 60;
 const maxPublicJsonBodyBytes = 256 * 1024;
-const maxAdminJsonBodyBytes = 24 * 1024 * 1024;
+const maxAdminJsonBodyBytes = 64 * 1024 * 1024;
 const rateLimitStore = new Map();
 const fileWriteQueues = new Map();
 const orderStatuses = ["Request received", "Callback done", "Packed", "Shipped", "Delivered", "Cancelled"];
 const adminAllowedIps = parseCsvEnv(process.env.ADMIN_ALLOWED_IPS);
 const adminAllowedIpHashes = parseCsvEnv(process.env.ADMIN_ALLOWED_IP_HASHES).map((hash) => hash.toLowerCase());
+const uploadedAssetsDir = path.join(dataDir, "uploads");
+const uploadPublicPrefix = "/uploads";
 
 const mimeTypes = new Map([
   [".html", "text/html; charset=utf-8"],
@@ -50,8 +52,19 @@ const mimeTypes = new Map([
   [".txt", "text/plain; charset=utf-8"],
   [".xml", "application/xml; charset=utf-8"],
   [".png", "image/png"],
+  [".jpg", "image/jpeg"],
+  [".jpeg", "image/jpeg"],
+  [".webp", "image/webp"],
+  [".gif", "image/gif"],
   [".svg", "image/svg+xml"],
   [".ico", "image/x-icon"],
+]);
+const uploadImageExtensions = new Map([
+  ["image/png", ".png"],
+  ["image/jpeg", ".jpg"],
+  ["image/jpg", ".jpg"],
+  ["image/webp", ".webp"],
+  ["image/gif", ".gif"],
 ]);
 
 const publicStaticExtensions = new Set(mimeTypes.keys());
@@ -301,6 +314,74 @@ function slugify(value) {
     .replace(/^-+|-+$/g, "");
 }
 
+function inlineImagePayload(value) {
+  const match = String(value || "")
+    .trim()
+    .match(/^data:(image\/(?:png|jpe?g|webp|gif));base64,([\s\S]+)$/i);
+  if (!match) return null;
+  const mime = match[1].toLowerCase() === "image/jpg" ? "image/jpeg" : match[1].toLowerCase();
+  const extension = uploadImageExtensions.get(mime);
+  if (!extension) return null;
+  const buffer = Buffer.from(match[2].replace(/\s/g, ""), "base64");
+  if (!buffer.length) return null;
+  if (buffer.length > 12 * 1024 * 1024) {
+    throw new Error("Uploaded image is too large. Use an image under 12 MB.");
+  }
+  return { buffer, extension };
+}
+
+function uploadSegment(value, fallback) {
+  return (slugify(value).slice(0, 80) || fallback).replace(/^-+|-+$/g, "") || fallback;
+}
+
+async function persistInlineImage(value, scope, nameHint) {
+  const source = String(value || "").trim();
+  const payload = inlineImagePayload(source);
+  if (!payload) return source;
+
+  const safeScope = uploadSegment(scope, "general");
+  const safeName = uploadSegment(nameHint, "image");
+  const fileName = `${safeName}-${Date.now()}-${crypto.randomBytes(4).toString("hex")}${payload.extension}`;
+  const targetDir = path.join(uploadedAssetsDir, safeScope);
+  await fs.mkdir(targetDir, { recursive: true });
+  await fs.writeFile(path.join(targetDir, fileName), payload.buffer);
+  return `${uploadPublicPrefix}/${safeScope}/${fileName}`;
+}
+
+function rawImageList(value) {
+  return Array.isArray(value) ? value : String(value || "").split(/\r?\n|,/);
+}
+
+async function persistProductImages(product) {
+  const draft = { ...product };
+  const rawImages = Array.from(new Set([draft.image, ...rawImageList(draft.images)].map((image) => String(image || "").trim()).filter(Boolean)));
+  const images = [];
+  for (const image of rawImages) {
+    const persisted = await persistInlineImage(image, "products", draft.name || draft.id || "product");
+    if (persisted) images.push(persisted);
+  }
+  const uniqueImages = Array.from(new Set(images.map((image) => String(image || "").trim()).filter(Boolean)));
+  if (uniqueImages.length) {
+    draft.image = uniqueImages[0];
+    draft.images = uniqueImages;
+  }
+  return draft;
+}
+
+async function persistBrandImage(brand) {
+  return {
+    ...brand,
+    logo: await persistInlineImage(brand.logo, "brands", brand.name || brand.id || "brand"),
+  };
+}
+
+async function persistAdImage(ad) {
+  return {
+    ...ad,
+    image: await persistInlineImage(ad.image, "ads", ad.title || ad.id || "ad"),
+  };
+}
+
 function normalizeIp(value) {
   return String(value || "")
     .trim()
@@ -394,7 +475,7 @@ function normalizeBrand(brand) {
 
 function normalizeAd(ad) {
   const title = String(ad.title || "").trim();
-  const placement = String(ad.placement || "home-top").trim();
+  const placement = String(ad.placement || "home-banner").trim();
   return {
     id: slugify(ad.id || `${placement}-${title}`) || createPublicId("ad").toLowerCase(),
     title,
@@ -588,6 +669,7 @@ function requireAdmin(req, res) {
 
 async function ensureDataFiles() {
   await fs.mkdir(dataDir, { recursive: true });
+  await fs.mkdir(uploadedAssetsDir, { recursive: true });
   try {
     await fs.access(productsFile);
   } catch {
@@ -1013,7 +1095,7 @@ async function handleApi(req, res, reqUrl) {
   if (reqUrl.pathname === "/api/brands" && req.method === "POST") {
     if (!requireAdmin(req, res)) return;
     const body = await readRequestJson(req, maxAdminJsonBodyBytes);
-    const brand = normalizeBrand(body.brand || body);
+    const brand = normalizeBrand(await persistBrandImage(body.brand || body));
     if (!brand.name) {
       sendJson(res, 400, { error: "Brand name is required" });
       return;
@@ -1070,7 +1152,7 @@ async function handleApi(req, res, reqUrl) {
   if (reqUrl.pathname === "/api/admin/ads" && req.method === "POST") {
     if (!requireAdmin(req, res)) return;
     const body = await readRequestJson(req, maxAdminJsonBodyBytes);
-    const ad = normalizeAd(body.ad || body);
+    const ad = normalizeAd(await persistAdImage(body.ad || body));
     if (!ad.title) {
       sendJson(res, 400, { error: "Ad title is required" });
       return;
@@ -1110,7 +1192,7 @@ async function handleApi(req, res, reqUrl) {
   if (reqUrl.pathname === "/api/products" && req.method === "POST") {
     if (!requireAdmin(req, res)) return;
     const body = await readRequestJson(req, maxAdminJsonBodyBytes);
-    const product = normalizeProduct(body.product || body);
+    const product = normalizeProduct(await persistProductImages(body.product || body));
     if (!product.name) {
       sendJson(res, 400, { error: "Product name is required" });
       return;
@@ -1283,8 +1365,39 @@ async function handleApi(req, res, reqUrl) {
   sendJson(res, 404, { error: "API route not found" });
 }
 
+async function serveUploadedAsset(res, requestPath) {
+  const relativeUploadPath = requestPath.slice(uploadPublicPrefix.length).replace(/^\/+/, "");
+  const filePath = path.normalize(path.join(uploadedAssetsDir, relativeUploadPath));
+  const relativePath = path.relative(uploadedAssetsDir, filePath);
+  const extension = path.extname(filePath).toLowerCase();
+
+  if (relativePath.startsWith("..") || path.isAbsolute(relativePath) || !uploadImageExtensions.has(mimeTypes.get(extension))) {
+    sendText(res, 404, "Not found");
+    return;
+  }
+
+  try {
+    const data = await fs.readFile(filePath);
+    res.writeHead(
+      200,
+      withSecurityHeaders({
+        "Content-Type": mimeTypes.get(extension) || "application/octet-stream",
+        "Cache-Control": "public, max-age=31536000, immutable",
+      })
+    );
+    res.end(data);
+  } catch {
+    sendText(res, 404, "Not found");
+  }
+}
+
 async function handleStatic(req, res, reqUrl) {
   const requestPath = decodeURIComponent(reqUrl.pathname === "/" ? "/index.html" : reqUrl.pathname);
+  if (requestPath.startsWith(`${uploadPublicPrefix}/`)) {
+    await serveUploadedAsset(res, requestPath);
+    return;
+  }
+
   const filePath = path.normalize(path.join(rootDir, requestPath));
   const relativePath = path.relative(rootDir, filePath);
 

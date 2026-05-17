@@ -3532,7 +3532,7 @@ assignCallbackButton?.addEventListener("click", () => {
   $("#enquiries")?.scrollIntoView({ behavior: "smooth", block: "start" });
 });
 
-function readImageFile(file) {
+function fileToDataUrl(file) {
   return new Promise((resolve) => {
     const reader = new FileReader();
     reader.addEventListener("load", () => resolve(String(reader.result || "")));
@@ -3540,10 +3540,46 @@ function readImageFile(file) {
   });
 }
 
+function loadImageForResize(src) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.addEventListener("load", () => resolve(image), { once: true });
+    image.addEventListener("error", reject, { once: true });
+    image.src = src;
+  });
+}
+
+async function readImageFile(file, options = {}) {
+  const dataUrl = await fileToDataUrl(file);
+  if (!String(file.type || "").startsWith("image/") || file.type === "image/gif") return dataUrl;
+
+  const maxDimension = Number(options.maxDimension || 1400);
+  const maxBytes = Number(options.maxBytes || 900 * 1024);
+  const quality = Number(options.quality || 0.86);
+  try {
+    if (file.size <= maxBytes) return dataUrl;
+    const image = await loadImageForResize(dataUrl);
+    const largestSide = Math.max(image.naturalWidth || image.width, image.naturalHeight || image.height);
+    const scale = largestSide > maxDimension ? maxDimension / largestSide : 1;
+    const width = Math.max(1, Math.round((image.naturalWidth || image.width) * scale));
+    const height = Math.max(1, Math.round((image.naturalHeight || image.height) * scale));
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext("2d");
+    if (!context) return dataUrl;
+    context.drawImage(image, 0, 0, width, height);
+    const outputType = options.preserveTransparency && file.type === "image/png" ? "image/png" : "image/jpeg";
+    return canvas.toDataURL(outputType, outputType === "image/jpeg" ? quality : undefined);
+  } catch {
+    return dataUrl;
+  }
+}
+
 adAdminForm?.elements.imageUpload?.addEventListener("change", async (event) => {
   const file = event.currentTarget.files?.[0];
   if (!file || !adAdminForm?.elements.image) return;
-  adAdminForm.elements.image.value = await readImageFile(file);
+  adAdminForm.elements.image.value = await readImageFile(file, { maxDimension: 1800, maxBytes: 1400 * 1024, quality: 0.86 });
   if (adAdminMessage) adAdminMessage.textContent = `${file.name} banner photo loaded. Save ad to publish it.`;
 });
 
@@ -3590,7 +3626,7 @@ resetAdForm?.addEventListener("click", resetAdminAdForm);
 brandAdminForm?.elements.logoUpload?.addEventListener("change", async (event) => {
   const file = event.currentTarget.files?.[0];
   if (!file || !brandAdminForm?.elements.logo) return;
-  brandAdminForm.elements.logo.value = await readImageFile(file);
+  brandAdminForm.elements.logo.value = await readImageFile(file, { maxDimension: 900, maxBytes: 650 * 1024, preserveTransparency: true });
   if (brandAdminMessage) brandAdminMessage.textContent = `${file.name} brand logo loaded. Save brand to publish it.`;
 });
 
@@ -3641,14 +3677,7 @@ productAdminForm?.elements.imageUpload?.addEventListener("change", (event) => {
   const files = Array.from(event.currentTarget.files || []);
   if (!files.length) return;
   Promise.all(
-    files.map(
-      (file) =>
-        new Promise((resolve) => {
-          const reader = new FileReader();
-          reader.addEventListener("load", () => resolve(String(reader.result || "")));
-          reader.readAsDataURL(file);
-        })
-    )
+    files.map((file) => readImageFile(file, { maxDimension: 1400, maxBytes: 900 * 1024, quality: 0.86 }))
   ).then((uploadedImages) => {
     const images = uniqueImages([...currentAdminFormImages(), ...uploadedImages]);
     productAdminForm.elements.image.value = images[0] || "";

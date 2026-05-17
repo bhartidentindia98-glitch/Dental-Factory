@@ -13,7 +13,7 @@ Open `http://127.0.0.1:5173/`.
 - `ADMIN_PASSWORD`: set your private admin password.
 - `SESSION_SECRET`: set any long random text for admin login cookies.
 - `ADMIN_SESSION_MINUTES`: admin auto logout window. Default is `30`.
-- `DATA_DIR`: set to a persistent folder such as `/var/data` after attaching a Render persistent disk. Without this, Render restarts/deploys can wipe demo JSON orders.
+- `DATA_DIR`: persistent folder for products, brands, ads, orders, and uploaded images. The included Render blueprint mounts `/var/data` for this.
 - `RAZORPAY_KEY_ID`: Razorpay test or live Key ID for online payments.
 - `RAZORPAY_KEY_SECRET`: Razorpay test or live Key Secret for server-side order creation and signature verification.
 - `PAYMENT_CURRENCY`: keep `INR` for Indian payments.
@@ -21,7 +21,7 @@ Open `http://127.0.0.1:5173/`.
 
 Admin login is disabled on production until `ADMIN_PASSWORD` is set in Render. This prevents the local demo password from working on the live website.
 Online payment remains disabled until the two Razorpay keys are set in Render.
-Orders and admin-created products are stored in JSON files. On Render, use a persistent disk mounted at `/var/data` and set `DATA_DIR=/var/data`, or move the app to Postgres before taking real orders.
+Orders, admin-created products, uploaded product photos, brand logos, and banner ads are stored under `DATA_DIR`. On Render, keep the persistent disk mounted at `/var/data`; without persistent storage, deploys/restarts can wipe admin uploads.
 
 ## Live commands
 
