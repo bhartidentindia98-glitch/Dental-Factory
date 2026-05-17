@@ -769,6 +769,10 @@ function sendText(res, status, text) {
   res.end(text);
 }
 
+function stripRetiredAnnouncementHtml(html) {
+  return String(html || "").replace(/\r?\n\s*<div class="announcement">[\s\S]*?<\/div>\s*\r?\n/g, "\n");
+}
+
 async function readRequestJson(req, maxBytes = maxPublicJsonBodyBytes) {
   const chunks = [];
   let size = 0;
@@ -1295,11 +1299,14 @@ async function handleStatic(req, res, reqUrl) {
   }
 
   try {
-    const data = await fs.readFile(filePath);
+    let data = await fs.readFile(filePath);
     const headers = {
       "Content-Type": mimeTypes.get(extension) || "application/octet-stream",
       "Cache-Control": [".html", ".css", ".js"].includes(extension) ? "no-store, max-age=0" : "public, max-age=3600",
     };
+    if (extension === ".html") {
+      data = Buffer.from(stripRetiredAnnouncementHtml(data.toString("utf8")));
+    }
     res.writeHead(200, withSecurityHeaders(headers));
     res.end(data);
   } catch {
