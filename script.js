@@ -22,9 +22,9 @@ const closeCheckout = $("#closeCheckout");
 const checkoutSummary = $("#checkoutSummary");
 const checkoutMessage = $("#checkoutMessage");
 const loginButton = $("#loginButton");
-const accountModal = $("#accountModal");
-const closeAccount = $("#closeAccount");
-const accountMessage = $("#accountMessage");
+let accountModal = $("#accountModal");
+let closeAccount = $("#closeAccount");
+let accountMessage = $("#accountMessage");
 const productModal = $("#productModal");
 const closeProduct = $("#closeProduct");
 const detailTitle = $("#detailTitle");
@@ -105,6 +105,16 @@ const membershipPlans = {
   dentist: "Clinic Plus",
   student: "Student Access",
   dealer: "Dealer Desk",
+};
+const accountTypeLabels = {
+  dentist: "Clinic or doctor name",
+  dealer: "Firm name",
+  student: "College name",
+};
+const accountTypeNames = {
+  dentist: "Dentist",
+  dealer: "Dealer",
+  student: "Student",
 };
 const DEFAULT_HSN = "9018";
 const DEFAULT_UNIT = "Pcs";
@@ -633,9 +643,34 @@ function accountDisplayName(account) {
   return String(account?.clinic || account?.name || "Account").trim();
 }
 
+function accountFieldLabel(type = "dentist") {
+  return accountTypeLabels[type] || accountTypeLabels.dentist;
+}
+
+function accountTypeName(type = "dentist") {
+  return accountTypeNames[type] || accountTypeNames.dentist;
+}
+
 function setAccountFormType(type = "dentist") {
   $$('input[name="type"]').forEach((input) => {
     input.checked = input.value === type;
+  });
+  updateAccountTypeLabels();
+}
+
+function updateAccountTypeLabels() {
+  [$("#accountForm"), accountPageForm].filter(Boolean).forEach((form) => {
+    const checkedType = form.querySelector('input[name="type"]:checked')?.value || "dentist";
+    const nameInput = form.elements.clinic;
+    const label = nameInput?.closest("label");
+    const labelText = accountFieldLabel(checkedType);
+    const labelSpan = label?.querySelector("[data-account-name-label]");
+    if (labelSpan) {
+      labelSpan.textContent = labelText;
+    } else if (label?.firstChild?.nodeType === Node.TEXT_NODE) {
+      label.firstChild.textContent = `${labelText} `;
+    }
+    if (nameInput) nameInput.placeholder = labelText;
   });
 }
 
@@ -668,9 +703,154 @@ function updateMembershipUi() {
   membershipAction.removeAttribute("data-account");
 }
 
+function accountModalTemplate() {
+  return `
+    <form class="account-panel" id="accountForm">
+      <div class="cart-head">
+        <h2>Login or create account</h2>
+        <button class="icon-only" id="closeAccount" type="button" aria-label="Close login" data-close-account>
+          <i data-lucide="x"></i>
+        </button>
+      </div>
+      <p class="account-note">Track orders, save clinic addresses, and access bulk pricing callbacks.</p>
+      <label>
+        Mobile number
+        <input name="mobile" required inputmode="tel" placeholder="Account mobile number" />
+      </label>
+      <label>
+        <span data-account-name-label>Clinic or doctor name</span>
+        <input name="clinic" required placeholder="Clinic or doctor name" />
+      </label>
+      <div class="account-options" aria-label="Account type">
+        <label><input name="type" type="radio" checked value="dentist" /> Dentist</label>
+        <label><input name="type" type="radio" value="dealer" /> Dealer</label>
+        <label><input name="type" type="radio" value="student" /> Student</label>
+      </div>
+      <button class="checkout-button" type="submit">Continue</button>
+      <p class="checkout-message" id="accountMessage" role="status"></p>
+    </form>
+    <section class="account-panel account-profile" id="accountProfile" hidden></section>
+  `;
+}
+
+function ensureAccountProfile(modal) {
+  let profile = modal.querySelector("#accountProfile");
+  if (!profile) {
+    profile = document.createElement("section");
+    profile.className = "account-panel account-profile";
+    profile.id = "accountProfile";
+    profile.hidden = true;
+    modal.appendChild(profile);
+  }
+  return profile;
+}
+
+function ensureAccountModal() {
+  accountModal = accountModal || $("#accountModal");
+  if (!accountModal) {
+    accountModal = document.createElement("aside");
+    accountModal.className = "account-modal";
+    accountModal.id = "accountModal";
+    accountModal.setAttribute("aria-label", "Account login");
+    accountModal.setAttribute("aria-hidden", "true");
+    accountModal.innerHTML = accountModalTemplate();
+    document.body.appendChild(accountModal);
+    setIcons();
+  } else {
+    ensureAccountProfile(accountModal);
+  }
+
+  closeAccount = $("#closeAccount");
+  accountMessage = $("#accountMessage");
+  const form = accountModal.querySelector("#accountForm");
+
+  if (form && !form.dataset.accountWired) {
+    form.dataset.accountWired = "true";
+    form.addEventListener("submit", (event) => submitAccountForm(event, accountMessage, true));
+    form.querySelectorAll('input[name="type"]').forEach((input) => {
+      input.addEventListener("change", updateAccountTypeLabels);
+    });
+  }
+
+  if (!accountModal.dataset.accountWired) {
+    accountModal.dataset.accountWired = "true";
+    accountModal.addEventListener("click", (event) => {
+      if (event.target === accountModal || event.target.closest("[data-close-account]") || event.target.id === "closeAccount") {
+        hideAccount();
+        return;
+      }
+      if (event.target.closest("[data-edit-account]")) {
+        setAccountModalMode("form");
+        return;
+      }
+      if (event.target.closest("[data-account-logout]")) {
+        localStorage.removeItem(CUSTOMER_ACCOUNT_KEY);
+        updateAccountButtons();
+        setAccountModalMode("form");
+        if (accountMessage) accountMessage.textContent = "Logged out on this device.";
+        showToast("Account logged out on this device.");
+      }
+    });
+  }
+
+  updateAccountTypeLabels();
+  return accountModal;
+}
+
+function renderAccountProfile(account = loadCustomerAccount()) {
+  const modal = ensureAccountModal();
+  const profile = ensureAccountProfile(modal);
+  if (!account?.clinic) {
+    profile.hidden = true;
+    return;
+  }
+
+  const type = account.type || "dentist";
+  profile.innerHTML = `
+    <div class="cart-head">
+      <h2>Your profile</h2>
+      <button class="icon-only" type="button" aria-label="Close profile" data-close-account>
+        <i data-lucide="x"></i>
+      </button>
+    </div>
+    <p class="account-note">Your saved Dental Factory account details.</p>
+    <div class="profile-card">
+      <span>${escapeHtml(accountTypeName(type))}</span>
+      <strong>${escapeHtml(accountDisplayName(account))}</strong>
+      <dl>
+        <div><dt>Mobile</dt><dd>${escapeHtml(account.mobile || "Not added")}</dd></div>
+        <div><dt>${escapeHtml(accountFieldLabel(type))}</dt><dd>${escapeHtml(account.clinic || "Not added")}</dd></div>
+        <div><dt>Status</dt><dd>${escapeHtml(account.status || "Callback pending")}</dd></div>
+      </dl>
+    </div>
+    <div class="profile-actions">
+      <button class="checkout-button" type="button" data-edit-account>Edit details</button>
+      <a class="outline-link" href="track-order.html">Track orders</a>
+      <button class="outline-link danger-link" type="button" data-account-logout>Logout</button>
+    </div>
+  `;
+  setIcons();
+}
+
+function setAccountModalMode(mode) {
+  const modal = ensureAccountModal();
+  const form = modal.querySelector("#accountForm");
+  const profile = modal.querySelector("#accountProfile");
+  const showProfile = mode === "profile" && Boolean(loadCustomerAccount()?.clinic);
+  if (form) form.hidden = showProfile;
+  if (profile) profile.hidden = !showProfile;
+  if (!showProfile) hydrateAccountForms();
+}
+
 function updateAccountButtons() {
   const account = loadCustomerAccount();
   if (!account?.clinic) {
+    $$("[id='loginButton']").forEach((button) => {
+      const label = button.querySelector("span");
+      if (label) label.textContent = "Login";
+      button.setAttribute("aria-label", "Login");
+      button.removeAttribute("title");
+    });
     updateMembershipUi();
     return;
   }
@@ -1359,25 +1539,21 @@ function hideProductDetails() {
 
 function openAccount(event) {
   event?.preventDefault();
-
+  const modal = ensureAccountModal();
   const savedAccount = loadCustomerAccount();
-
-  if (savedAccount && (savedAccount.clinic || savedAccount.name || savedAccount.phone)) {
-    return;
-  }
-
-  if (!accountModal) return;
   if (accountMessage) accountMessage.textContent = "";
-  hydrateAccountForms();
-  accountModal.classList.add("is-open");
-  accountModal.setAttribute("aria-hidden", "false");
-}
+  hydrateAccountForms(savedAccount);
+  renderAccountProfile(savedAccount);
+  setAccountModalMode(savedAccount?.clinic ? "profile" : "form");
+  modal.classList.add("is-open");
+  modal.setAttribute("aria-hidden", "false");
 }
 
 function hideAccount() {
-  if (!accountModal) return;
-  accountModal.classList.remove("is-open");
-  accountModal.setAttribute("aria-hidden", "true");
+  const modal = accountModal || $("#accountModal");
+  if (!modal) return;
+  modal.classList.remove("is-open");
+  modal.setAttribute("aria-hidden", "true");
 }
 
 function showSlide(index) {
@@ -2195,8 +2371,8 @@ if (cartButton) {
 if (closeCart) closeCart.addEventListener("click", hideCart);
 if (checkoutButton) checkoutButton.addEventListener("click", openCheckout);
 if (closeCheckout) closeCheckout.addEventListener("click", hideCheckout);
-if (loginButton) loginButton.addEventListener("click", openAccount);
-if (closeAccount) closeAccount.addEventListener("click", hideAccount);
+$$("[id='loginButton']").forEach((button) => button.addEventListener("click", openAccount));
+if (accountModal) ensureAccountModal();
 if (closeProduct) closeProduct.addEventListener("click", hideProductDetails);
 
 if (cartDrawer) {
@@ -2214,12 +2390,6 @@ if (checkoutModal) {
 if (productModal) {
   productModal.addEventListener("click", (event) => {
     if (event.target === productModal) hideProductDetails();
-  });
-}
-
-if (accountModal) {
-  accountModal.addEventListener("click", (event) => {
-    if (event.target === accountModal) hideAccount();
   });
 }
 
@@ -2341,23 +2511,38 @@ async function submitAccountForm(event, messageNode, closeAfterSave = false) {
     return;
   }
 
+  const localAccount = {
+    ...loadCustomerAccount(),
+    ...account,
+    status: loadCustomerAccount()?.status || "Callback pending",
+    updatedAt: new Date().toISOString(),
+  };
+  saveCustomerAccount(localAccount);
+  updateAccountButtons();
+  renderAccountProfile(localAccount);
+
   submitButton.disabled = true;
   if (messageNode) messageNode.textContent = "Saving account request...";
   try {
     const savedAccount = await saveBackendAccount(account);
     saveCustomerAccount(savedAccount);
     updateAccountButtons();
+    renderAccountProfile(savedAccount);
     if (messageNode) messageNode.textContent = `${savedAccount.clinic} account request saved. We will verify by phone.`;
     form.reset();
     if (closeAfterSave) window.setTimeout(hideAccount, 900);
   } catch (error) {
-    if (messageNode) messageNode.textContent = `Account save failed: ${error.message}`;
+    if (messageNode) messageNode.textContent = `Details saved on this device. Backend sync failed: ${error.message}`;
   } finally {
     submitButton.disabled = false;
   }
 }
 
-$("#accountForm")?.addEventListener("submit", (event) => submitAccountForm(event, accountMessage, true));
+const initialAccountForm = $("#accountForm");
+if (initialAccountForm && !initialAccountForm.dataset.accountWired) {
+  initialAccountForm.dataset.accountWired = "true";
+  initialAccountForm.addEventListener("submit", (event) => submitAccountForm(event, accountMessage, true));
+}
 
 accountPageForm?.addEventListener("submit", (event) => submitAccountForm(event, accountPageMessage));
 
@@ -2519,6 +2704,8 @@ $$(".membership-card[data-membership-type]").forEach((card) => {
   });
 });
 
+$$('input[name="type"]').forEach((input) => input.addEventListener("change", updateAccountTypeLabels));
+updateAccountTypeLabels();
 hydrateAdminProducts();
 renderAdminProductsOnStorefront();
 injectDetailButtons();
