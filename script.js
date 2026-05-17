@@ -97,6 +97,12 @@ const clearBrandForm = $("#clearBrandForm");
 const resetBrandForm = $("#resetBrandForm");
 const featuredBrandList = $("#featuredBrandList");
 const brandDirectoryGrid = $("#brandDirectoryGrid");
+const adAdminForm = $("#adAdminForm");
+const adAdminTable = $("#adAdminTable");
+const adAdminMessage = $("#adAdminMessage");
+const clearAdForm = $("#clearAdForm");
+const resetAdForm = $("#resetAdForm");
+const adSlots = $$("[data-ad-slot]");
 let brandButtons = $$(".brand-row button[data-brand], .brand-filter button[data-brand]");
 
 let activeFilter = "all";
@@ -107,8 +113,11 @@ let adminSessionMinutes = 30;
 let adminAutoLogoutTimer = null;
 const ADMIN_PRODUCTS_KEY = "dentalFactoryAdminProducts";
 const ADMIN_BRANDS_KEY = "dentalFactoryAdminBrands";
+const ADMIN_ADS_KEY = "dentalFactoryAdminAds";
 const PRODUCTS_API = "/api/products";
 const BRANDS_API = "/api/brands";
+const ADS_API = "/api/ads";
+const ADMIN_ADS_API = "/api/admin/ads";
 const ORDERS_API = "/api/orders";
 const ORDER_TRACK_API = "/api/orders/track";
 const ACCOUNTS_API = "/api/accounts";
@@ -168,6 +177,36 @@ const defaultBrands = [
   { name: "3M ESPE", description: "Composite, restorative, and bonding materials.", featured: true },
   { name: "Orthometric", description: "Orthodontic brackets, wires, and alignment products.", featured: true },
   { name: "DentalTech", description: "Dental practice essentials and value-focused consumables.", featured: true },
+];
+
+const defaultAds = [
+  {
+    title: "Bulk pricing for restorative materials",
+    message: "Mix composites, cements, and endodontic essentials in one order and unlock better clinic pricing.",
+    cta: "Shop deals",
+    link: "products.html?search=restorative",
+    placement: "home-banner",
+    active: true,
+    priority: 1,
+  },
+  {
+    title: "New clinic setup support",
+    message: "Send your equipment list and get callback support for chairs, autoclaves, handpieces, and consumables.",
+    cta: "Setup a clinic",
+    link: "index.html#clinic-setup",
+    placement: "home-banner",
+    active: true,
+    priority: 2,
+  },
+  {
+    title: "Same day dispatch on clinic essentials",
+    message: "Keep fast-moving materials ready with curated dental supplies and quick order support.",
+    cta: "View products",
+    link: "products.html",
+    placement: "home-banner",
+    active: true,
+    priority: 3,
+  },
 ];
 
 const productDetails = {
@@ -446,6 +485,213 @@ function loadAdminProducts() {
 
 function saveAdminProducts(products) {
   localStorage.setItem(ADMIN_PRODUCTS_KEY, JSON.stringify(products.map(normalizeAdminProduct).filter((product) => product.name)));
+}
+
+function normalizeAd(ad) {
+  const title = String(ad.title || "").trim();
+  const placement = String(ad.placement || "home-banner").trim();
+  return {
+    id: String(ad.id || slugifyProduct(`${placement}-${title}`)).trim(),
+    title,
+    message: String(ad.message || "").trim(),
+    cta: String(ad.cta || "Shop now").trim(),
+    link: String(ad.link || "products.html").trim(),
+    placement,
+    active: ad.active !== false,
+    priority: Number(ad.priority || 1),
+  };
+}
+
+function loadAdminAds() {
+  try {
+    const stored = JSON.parse(localStorage.getItem(ADMIN_ADS_KEY) || "null");
+    if (Array.isArray(stored)) return stored.map(normalizeAd).filter((ad) => ad.title);
+  } catch {}
+  return defaultAds.map(normalizeAd);
+}
+
+function saveAdminAds(ads) {
+  localStorage.setItem(ADMIN_ADS_KEY, JSON.stringify(ads.map(normalizeAd).filter((ad) => ad.title)));
+}
+
+async function fetchPublicAds() {
+  try {
+    const ads = await apiJson(ADS_API);
+    if (!Array.isArray(ads)) return null;
+    return ads.map(normalizeAd).filter((ad) => ad.title);
+  } catch {
+    return null;
+  }
+}
+
+async function fetchBackendAds() {
+  try {
+    const ads = await apiJson(ADMIN_ADS_API);
+    if (!Array.isArray(ads)) return null;
+    return ads.map(normalizeAd).filter((ad) => ad.title);
+  } catch {
+    return null;
+  }
+}
+
+async function saveBackendAd(ad, editing = "") {
+  return apiJson(ADMIN_ADS_API, {
+    method: "POST",
+    body: JSON.stringify({ editing, ad: normalizeAd(ad) }),
+  });
+}
+
+async function deleteBackendAd(idOrTitle) {
+  return apiJson(`${ADMIN_ADS_API}/${encodeURIComponent(idOrTitle)}`, {
+    method: "DELETE",
+  });
+}
+
+function adPlacementLabel(placement) {
+  const labels = {
+    "home-banner": "Home page banner",
+    "products-top": "Products page top",
+  };
+  return labels[placement] || placement || "Home page banner";
+}
+
+function adSlideTemplate(ad) {
+  return `
+    <div class="promo-slide ad-slide">
+      <div class="promo-copy">
+        <span class="eyebrow">Ad</span>
+        <h2>${escapeHtml(ad.title)}</h2>
+        <p>${escapeHtml(ad.message)}</p>
+        <div class="promo-actions">
+          <a class="primary-link" href="${escapeHtml(ad.link || "products.html")}">${escapeHtml(ad.cta || "Shop now")}</a>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function startAdSlider(slot) {
+  if (slot.adTimer) window.clearInterval(slot.adTimer);
+  const slides = Array.from(slot.querySelectorAll(".promo-slide"));
+  const dots = Array.from(slot.querySelectorAll("[data-ad-dot]"));
+  let index = 0;
+  const show = (nextIndex) => {
+    if (!slides.length) return;
+    index = (nextIndex + slides.length) % slides.length;
+    slides.forEach((slide, slideIndex) => slide.classList.toggle("is-active", slideIndex === index));
+    dots.forEach((dot, dotIndex) => dot.classList.toggle("is-active", dotIndex === index));
+  };
+  show(0);
+  if (slides.length > 1) {
+    slot.adTimer = window.setInterval(() => show(index + 1), 5000);
+  }
+  dots.forEach((dot, dotIndex) => {
+    dot.addEventListener("click", () => show(dotIndex));
+  });
+}
+
+function renderAdsOnStorefront(ads = loadAdminAds()) {
+  if (!adSlots.length) return;
+  const activeAds = ads
+    .map(normalizeAd)
+    .filter((ad) => ad.active && ad.title)
+    .sort((a, b) => a.priority - b.priority);
+
+  adSlots.forEach((slot) => {
+    const placement = slot.dataset.adSlot || "home-banner";
+    const slotAds = activeAds.filter((ad) => ad.placement === placement);
+    if (!slotAds.length) {
+      if (slot.dataset.adDynamic === "true") {
+        slot.innerHTML = "";
+        slot.hidden = true;
+      }
+      return;
+    }
+    if (slot.adTimer) window.clearInterval(slot.adTimer);
+    slot.hidden = false;
+    slot.dataset.adDynamic = "true";
+    slot.innerHTML = `
+      ${slotAds.map(adSlideTemplate).join("")}
+      <div class="ad-dots" aria-label="Ad controls">
+        ${slotAds.map((_, index) => `<button type="button" data-ad-dot="${index}" aria-label="Show ad ${index + 1}"></button>`).join("")}
+      </div>
+    `;
+    startAdSlider(slot);
+  });
+  setIcons();
+}
+
+function adRowTemplate(ad) {
+  return `
+    <strong>${escapeHtml(ad.title)}<small>${escapeHtml(ad.message)}</small></strong>
+    <span>${escapeHtml(adPlacementLabel(ad.placement))}</span>
+    <b>${ad.active ? "Active" : "Paused"}</b>
+    <div class="row-actions">
+      <button type="button" data-edit-ad>Edit</button>
+      <button type="button" data-delete-ad>Delete</button>
+    </div>
+  `;
+}
+
+function applyAdRowData(row, data) {
+  const ad = normalizeAd(data);
+  row.dataset.id = ad.id;
+  row.dataset.title = ad.title;
+  row.dataset.message = ad.message;
+  row.dataset.cta = ad.cta;
+  row.dataset.link = ad.link;
+  row.dataset.placement = ad.placement;
+  row.dataset.active = String(ad.active);
+  row.dataset.priority = ad.priority;
+  row.innerHTML = adRowTemplate(ad);
+}
+
+function renderAdminAdRows(ads) {
+  if (!adAdminTable) return;
+  $$("#adAdminTable .ad-admin-row:not(.ad-admin-head)").forEach((row) => row.remove());
+  ads
+    .map(normalizeAd)
+    .filter((ad) => ad.title)
+    .sort((a, b) => a.priority - b.priority)
+    .forEach((ad) => {
+      const row = document.createElement("div");
+      row.className = "product-admin-row ad-admin-row";
+      applyAdRowData(row, ad);
+      adAdminTable.appendChild(row);
+    });
+}
+
+function resetAdminAdForm() {
+  if (!adAdminForm) return;
+  adAdminForm.reset();
+  adAdminForm.elements.editing.value = "";
+  if (adAdminForm.elements.active) adAdminForm.elements.active.checked = true;
+  if (adAdminForm.elements.priority) adAdminForm.elements.priority.value = "1";
+  if (adAdminMessage) adAdminMessage.textContent = "Ready to run a new banner ad.";
+}
+
+function syncLocalAdminAds(ads) {
+  const normalizedAds = ads.map(normalizeAd).filter((ad) => ad.title);
+  saveAdminAds(normalizedAds);
+  renderAdminAdRows(normalizedAds);
+  renderAdsOnStorefront(normalizedAds);
+}
+
+function hydrateAdminAds() {
+  const ads = loadAdminAds();
+  renderAdminAdRows(ads);
+  renderAdsOnStorefront(ads);
+}
+
+async function syncAdsFromBackend() {
+  const backendAds = await fetchBackendAds();
+  if (!backendAds) return;
+  syncLocalAdminAds(backendAds);
+}
+
+async function syncPublicAds() {
+  const publicAds = await fetchPublicAds();
+  if (publicAds) renderAdsOnStorefront(publicAds);
 }
 
 function normalizeBrand(brand) {
@@ -1876,7 +2122,9 @@ function hideAccount() {
 }
 
 function showSlide(index) {
-  const slides = $$(".promo-slide");
+  const slider = $("#homePromoSlider");
+  if (!slider || slider.dataset.adDynamic === "true") return;
+  const slides = Array.from(slider.querySelectorAll(".promo-slide"));
   if (slides.length === 0) return;
   activeSlide = (index + slides.length) % slides.length;
   slides.forEach((slide, slideIndex) => {
@@ -2702,6 +2950,39 @@ document.addEventListener("click", async (event) => {
     }
   }
 
+  const editAdButton = event.target.closest("[data-edit-ad]");
+  if (editAdButton && adAdminForm) {
+    const row = editAdButton.closest(".ad-admin-row");
+    adAdminForm.elements.editing.value = row.dataset.title;
+    adAdminForm.elements.title.value = row.dataset.title;
+    adAdminForm.elements.message.value = row.dataset.message;
+    adAdminForm.elements.cta.value = row.dataset.cta || "Shop now";
+    adAdminForm.elements.link.value = row.dataset.link || "products.html";
+    adAdminForm.elements.placement.value = row.dataset.placement || "home-banner";
+    adAdminForm.elements.priority.value = row.dataset.priority || "1";
+    if (adAdminForm.elements.active) adAdminForm.elements.active.checked = row.dataset.active !== "false";
+    if (adAdminMessage) adAdminMessage.textContent = `Editing ${row.dataset.title}.`;
+    adAdminForm.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+
+  const deleteAdButton = event.target.closest("[data-delete-ad]");
+  if (deleteAdButton && adAdminTable) {
+    const row = deleteAdButton.closest(".ad-admin-row");
+    const adTitle = row?.dataset.title || "Ad";
+    const adId = row?.dataset.id || slugifyProduct(adTitle);
+    deleteAdButton.disabled = true;
+    if (adAdminMessage) adAdminMessage.textContent = `Deleting ${adTitle} from backend...`;
+    try {
+      await deleteBackendAd(adId || adTitle);
+      syncLocalAdminAds(loadAdminAds().filter((ad) => ad.title !== adTitle && ad.id !== adId));
+      if (adAdminForm?.elements.editing.value === adTitle) resetAdminAdForm();
+      if (adAdminMessage) adAdminMessage.textContent = `${adTitle} deleted.`;
+    } catch (error) {
+      deleteAdButton.disabled = false;
+      if (adAdminMessage) adAdminMessage.textContent = `Ad delete failed: ${error.message}`;
+    }
+  }
+
   const editBrandButton = event.target.closest("[data-edit-brand]");
   if (editBrandButton && brandAdminForm) {
     const row = editBrandButton.closest(".brand-admin-row");
@@ -2883,7 +3164,7 @@ if (detailBuyNow) {
 
 $("#prevSlide")?.addEventListener("click", () => showSlide(activeSlide - 1));
 $("#nextSlide")?.addEventListener("click", () => showSlide(activeSlide + 1));
-if ($$(".promo-slide").length > 1) {
+if ($("#homePromoSlider")?.querySelectorAll(".promo-slide").length > 1) {
   setInterval(() => showSlide(activeSlide + 1), 7000);
 }
 
@@ -3049,7 +3330,7 @@ function autoTrackInitialOrder() {
 
 adminSearch?.addEventListener("input", () => {
   const term = adminSearch.value.trim().toLowerCase();
-  $$(".admin-table > div, .stock-list > div, .enquiry-board > div, .product-admin-row:not(.product-admin-head), .brand-admin-row:not(.brand-admin-head)").forEach((row) => {
+  $$(".admin-table > div, .stock-list > div, .enquiry-board > div, .product-admin-row:not(.product-admin-head), .brand-admin-row:not(.brand-admin-head), .ad-admin-row:not(.ad-admin-head)").forEach((row) => {
     row.hidden = term && !row.textContent.toLowerCase().includes(term);
   });
 });
@@ -3070,6 +3351,7 @@ adminLoginForm?.addEventListener("submit", async (event) => {
     form.reset();
     setAdminUnlocked(true);
     if (adminAuthMessage) adminAuthMessage.textContent = "";
+    await syncAdsFromBackend();
     await syncBrandsFromBackend();
     await syncProductsFromBackend();
     await refreshAdminOrders();
@@ -3104,6 +3386,45 @@ assignCallbackButton?.addEventListener("click", () => {
   if (adminActionMessage) adminActionMessage.textContent = "Callback queue ready. Open an enquiry below, then call or WhatsApp the customer.";
   $("#enquiries")?.scrollIntoView({ behavior: "smooth", block: "start" });
 });
+
+adAdminForm?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const formData = new FormData(event.currentTarget);
+  const data = {
+    title: String(formData.get("title") || "").trim(),
+    message: String(formData.get("message") || "").trim(),
+    cta: String(formData.get("cta") || "Shop now").trim(),
+    link: String(formData.get("link") || "products.html").trim(),
+    placement: String(formData.get("placement") || "home-banner"),
+    active: Boolean(formData.get("active")),
+    priority: Number(formData.get("priority") || 1),
+  };
+  const editing = String(formData.get("editing") || "");
+  const submitButton = event.currentTarget.querySelector("button[type='submit']");
+  submitButton.disabled = true;
+  if (adAdminMessage) adAdminMessage.textContent = `Saving ${data.title} ad...`;
+
+  try {
+    const savedAd = normalizeAd(await saveBackendAd(data, editing));
+    const ads = loadAdminAds();
+    const existingIndex = ads.findIndex((ad) => ad.title === editing || ad.title === savedAd.title || ad.id === savedAd.id);
+    if (existingIndex >= 0) {
+      ads[existingIndex] = savedAd;
+    } else {
+      ads.push(savedAd);
+    }
+    syncLocalAdminAds(ads);
+    resetAdminAdForm();
+    if (adAdminMessage) adAdminMessage.textContent = `${savedAd.title} ad is ${savedAd.active ? "running" : "paused"}.`;
+  } catch (error) {
+    if (adAdminMessage) adAdminMessage.textContent = `Ad save failed: ${error.message}`;
+  } finally {
+    submitButton.disabled = false;
+  }
+});
+
+clearAdForm?.addEventListener("click", resetAdminAdForm);
+resetAdForm?.addEventListener("click", resetAdminAdForm);
 
 brandAdminForm?.addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -3225,10 +3546,13 @@ $$(".membership-card[data-membership-type]").forEach((card) => {
 
 $$('input[name="type"]').forEach((input) => input.addEventListener("change", updateAccountTypeLabels));
 updateAccountTypeLabels();
+hydrateAdminAds();
 hydrateAdminBrands();
 hydrateAdminProducts();
+resetAdminAdForm();
 resetAdminBrandForm();
 resetAdminProductForm();
+renderAdsOnStorefront();
 renderBrandsOnStorefront();
 renderAdminProductsOnStorefront();
 injectDetailButtons();
@@ -3244,6 +3568,7 @@ if (initialSearch && searchInput) searchInput.value = initialSearch;
 const initialBrand = searchParams().get("brand");
 if (initialBrand) activeBrand = initialBrand;
 applyFilter("all");
+syncPublicAds();
 syncBrandsFromBackend().then(() => {
   if (initialBrand) activeBrand = initialBrand;
   renderBrandsOnStorefront();

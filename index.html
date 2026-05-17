@@ -16,7 +16,7 @@
     <meta property="og:url" content="https://bhartidentindia.com/" />
     <meta property="og:image" content="https://bhartidentindia.com/assets/dental-factory-logo.png?v=20260517-logo" />
     <link rel="preconnect" href="https://unpkg.com" />
-    <link rel="stylesheet" href="styles.css?v=20260517-brands" />
+    <link rel="stylesheet" href="styles.css?v=20260517-ads" />
     <link rel="icon" href="assets/dental-factory-logo-mark.png?v=20260517-logo" />
     <script type="application/ld+json">
       {
@@ -130,7 +130,7 @@
         </aside>
 
         <div class="hero-area">
-          <div class="promo-slider" aria-label="Promotions">
+          <div class="promo-slider" id="homePromoSlider" data-ad-slot="home-banner" aria-label="Website ads">
             <div class="promo-slide is-active">
               <div class="promo-copy">
                 <span class="eyebrow">Clinic essentials week</span>
@@ -141,7 +141,6 @@
                   <a class="secondary-link" href="#clinic-setup">Setup a clinic</a>
                 </div>
               </div>
-              <img src="assets/hero-dental-shop.png" alt="Dental chair and clinic supply boxes" />
             </div>
             <div class="promo-slide">
               <div class="promo-copy">
@@ -153,7 +152,6 @@
                   <a class="secondary-link" href="#suggest">Request product</a>
                 </div>
               </div>
-              <img src="assets/composite-kit.png" alt="Dental composite kit" />
             </div>
             <div class="promo-slide">
               <div class="promo-copy">
@@ -165,14 +163,7 @@
                   <a class="secondary-link" href="#contact">Talk to support</a>
                 </div>
               </div>
-              <img src="assets/clinic-chair.png" alt="Dental clinic chair unit" />
             </div>
-            <button class="slider-control prev" id="prevSlide" type="button" aria-label="Previous promotion">
-              <i data-lucide="chevron-left"></i>
-            </button>
-            <button class="slider-control next" id="nextSlide" type="button" aria-label="Next promotion">
-              <i data-lucide="chevron-right"></i>
-            </button>
           </div>
 
           <div class="deal-grid" aria-label="Quick deals">
@@ -259,35 +250,35 @@
         </div>
         <div class="category-grid">
           <button class="category-card" data-filter="implants" type="button">
-            <img src="assets/implant-kit.png" alt="Implant prosthetic driver kit" />
+            <i data-lucide="wrench"></i>
             <span>Implant Prosthetics</span>
           </button>
           <button class="category-card" data-filter="rotary" type="button">
-            <img src="assets/air-rotor.png" alt="Airotor handpiece" />
+            <i data-lucide="rotate-cw"></i>
             <span>Airotors</span>
           </button>
           <button class="category-card" data-filter="restorative" type="button">
-            <img src="assets/composite-kit.png" alt="Composite restorative kit" />
+            <i data-lucide="sparkles"></i>
             <span>Composite</span>
           </button>
           <button class="category-card" data-filter="equipment" type="button">
-            <img src="assets/clinic-chair.png" alt="Dental chair unit" />
+            <i data-lucide="armchair"></i>
             <span>Dental Chairs</span>
           </button>
           <button class="category-card" data-filter="endo" type="button">
-            <img src="assets/endomotor.png" alt="Endomotor device" />
+            <i data-lucide="activity"></i>
             <span>Endomotors</span>
           </button>
           <button class="category-card" data-filter="sterilization" type="button">
-            <img src="assets/autoclave.png" alt="Autoclave sterilizer" />
+            <i data-lucide="shield-check"></i>
             <span>Autoclave</span>
           </button>
           <button class="category-card" data-filter="restorative" type="button">
-            <img src="assets/impression-kit.png" alt="Dental impression kit" />
+            <i data-lucide="package-check"></i>
             <span>Impression Materials</span>
           </button>
           <button class="category-card" data-filter="ortho" type="button">
-            <img src="assets/bracket-kit.png" alt="Orthodontic bracket kit" />
+            <i data-lucide="smile"></i>
             <span>Brackets</span>
           </button>
         </div>
@@ -827,6 +818,6 @@
 </footer>
 
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
-    <script src="script.js?v=20260517-brands"></script>
+    <script src="script.js?v=20260517-ads"></script>
   </body>
 </html>

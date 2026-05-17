@@ -29,6 +29,7 @@ const dataDir = path.resolve(process.env.DATA_DIR || defaultDataDir);
 const adminSessionMinutes = Math.min(720, Math.max(5, Number(process.env.ADMIN_SESSION_MINUTES || 30) || 30));
 const productsFile = path.join(dataDir, "products.json");
 const brandsFile = path.join(dataDir, "brands.json");
+const adsFile = path.join(dataDir, "ads.json");
 const ordersFile = path.join(dataDir, "orders.json");
 const accountsFile = path.join(dataDir, "accounts.json");
 const paymentAttemptsFile = path.join(dataDir, "payment-attempts.json");
@@ -246,6 +247,39 @@ const defaultBrands = [
   { name: "DentalTech", description: "Dental practice essentials and value-focused consumables.", featured: true },
 ];
 
+const defaultAds = [
+  {
+    id: "restorative-bulk-pricing",
+    title: "Bulk pricing for restorative materials",
+    message: "Mix composites, cements, and endodontic essentials in one order and unlock better clinic pricing.",
+    cta: "Shop deals",
+    link: "products.html?search=restorative",
+    placement: "home-banner",
+    active: true,
+    priority: 1,
+  },
+  {
+    id: "clinic-setup-desk",
+    title: "New clinic setup support",
+    message: "Send your equipment list and get callback support for chairs, autoclaves, handpieces, and consumables.",
+    cta: "Setup a clinic",
+    link: "index.html#clinic-setup",
+    placement: "home-banner",
+    active: true,
+    priority: 2,
+  },
+  {
+    id: "same-day-dispatch",
+    title: "Same day dispatch on clinic essentials",
+    message: "Keep fast-moving materials ready with curated dental supplies and quick order support.",
+    cta: "View products",
+    link: "products.html",
+    placement: "home-banner",
+    active: true,
+    priority: 3,
+  },
+];
+
 function parseCsvEnv(value) {
   return String(value || "")
     .split(",")
@@ -349,6 +383,22 @@ function normalizeBrand(brand) {
     description: String(brand.description || "Trusted dental brand available at Dental Factory.").trim(),
     featured: brand.featured !== false,
     updatedAt: brand.updatedAt || new Date().toISOString(),
+  };
+}
+
+function normalizeAd(ad) {
+  const title = String(ad.title || "").trim();
+  const placement = String(ad.placement || "home-top").trim();
+  return {
+    id: slugify(ad.id || `${placement}-${title}`) || createPublicId("ad").toLowerCase(),
+    title,
+    message: String(ad.message || "").trim(),
+    cta: String(ad.cta || "Shop now").trim(),
+    link: String(ad.link || "products.html").trim(),
+    placement,
+    active: ad.active !== false,
+    priority: Number(ad.priority || 1),
+    updatedAt: ad.updatedAt || new Date().toISOString(),
   };
 }
 
@@ -541,6 +591,11 @@ async function ensureDataFiles() {
   } catch {
     const products = await readJson(productsFile, defaultProducts);
     await writeJson(brandsFile, mergeBrands(defaultBrands, products));
+  }
+  try {
+    await fs.access(adsFile);
+  } catch {
+    await writeJson(adsFile, defaultAds);
   }
   try {
     await fs.access(ordersFile);
@@ -981,6 +1036,57 @@ async function handleApi(req, res, reqUrl) {
     const nextBrands = brands.filter((brand) => brand.id !== id && brand.name !== idOrName);
     await writeJson(brandsFile, nextBrands);
     sendJson(res, 200, { deleted: brands.length - nextBrands.length, id: idOrName });
+    return;
+  }
+
+  if (reqUrl.pathname === "/api/ads" && req.method === "GET") {
+    const ads = (await readJson(adsFile, [])).map(normalizeAd);
+    const publicAds = ads
+      .filter((ad) => ad.active && ad.title)
+      .sort((a, b) => a.priority - b.priority)
+      .map(({ updatedAt, ...ad }) => ad);
+    sendJson(res, 200, publicAds);
+    return;
+  }
+
+  if (reqUrl.pathname === "/api/admin/ads" && req.method === "GET") {
+    if (!requireAdmin(req, res)) return;
+    const ads = (await readJson(adsFile, [])).map(normalizeAd).filter((ad) => ad.title);
+    sendJson(res, 200, ads.sort((a, b) => a.priority - b.priority));
+    return;
+  }
+
+  if (reqUrl.pathname === "/api/admin/ads" && req.method === "POST") {
+    if (!requireAdmin(req, res)) return;
+    const body = await readRequestJson(req, maxAdminJsonBodyBytes);
+    const ad = normalizeAd(body.ad || body);
+    if (!ad.title) {
+      sendJson(res, 400, { error: "Ad title is required" });
+      return;
+    }
+    const ads = (await readJson(adsFile, [])).map(normalizeAd).filter((item) => item.title);
+    const editing = String(body.editing || ad.id || ad.title);
+    const editingSlug = slugify(editing);
+    const index = ads.findIndex((item) => item.id === editingSlug || item.title.toLowerCase() === editing.toLowerCase());
+    ad.updatedAt = new Date().toISOString();
+    if (index >= 0) {
+      ads[index] = ad;
+    } else {
+      ads.push(ad);
+    }
+    await writeJson(adsFile, ads);
+    sendJson(res, index >= 0 ? 200 : 201, ad);
+    return;
+  }
+
+  if (reqUrl.pathname.startsWith("/api/admin/ads/") && req.method === "DELETE") {
+    if (!requireAdmin(req, res)) return;
+    const idOrTitle = decodeURIComponent(reqUrl.pathname.replace("/api/admin/ads/", ""));
+    const id = slugify(idOrTitle);
+    const ads = (await readJson(adsFile, [])).map(normalizeAd).filter((ad) => ad.title);
+    const nextAds = ads.filter((ad) => ad.id !== id && ad.title !== idOrTitle);
+    await writeJson(adsFile, nextAds);
+    sendJson(res, 200, { deleted: ads.length - nextAds.length, id: idOrTitle });
     return;
   }
 
