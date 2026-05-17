@@ -716,6 +716,10 @@ main {
   font-weight: 800;
 }
 
+.product-card .badge {
+  display: none;
+}
+
 .product-meta h3 {
   min-height: 44px;
   margin: 0;
@@ -764,6 +768,12 @@ main {
 .price-row small {
   color: var(--muted);
   text-decoration: line-through;
+}
+
+.price-row span {
+  color: #009b62;
+  font-size: 0.86rem;
+  font-weight: 900;
 }
 
 .add-cart,
@@ -2112,35 +2122,6 @@ main {
   font-weight: 900;
 }
 
-.bulk-offers {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 10px;
-}
-
-.bulk-offers button {
-  display: grid;
-  gap: 2px;
-  min-height: 48px;
-  padding: 6px 10px;
-  border: 1px solid #8cc8ff;
-  border-radius: 7px;
-  color: var(--ink);
-  background: #fff;
-  text-align: center;
-  cursor: pointer;
-}
-
-.bulk-offers small {
-  color: #05a269;
-  font-size: 0.72rem;
-  font-weight: 900;
-}
-
-.bulk-offers strong {
-  font-size: 0.86rem;
-}
-
 .detail-buy-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 120px;
@@ -2793,10 +2774,6 @@ main {
 
   .product-detail-layout {
     grid-template-columns: 1fr;
-  }
-
-  .bulk-offers {
-    grid-template-columns: repeat(2, 1fr);
   }
 
   .detail-buy-row {

@@ -55,7 +55,6 @@ const pageDetailDiscount = $("#pageDetailDiscount");
 const pageDetailDelivery = $("#pageDetailDelivery");
 const pageDetailSpecs = $("#pageDetailSpecs");
 const pageDetailAddCart = $("#pageDetailAddCart");
-const pageBulkOffers = $("#pageBulkOffers");
 const pageDetailThumbs = $("#pageDetailThumbs");
 const detailBreadcrumbCurrent = $("#detailBreadcrumbCurrent");
 const cartPageLines = $("#cartPageLines");
@@ -1812,15 +1811,16 @@ async function syncProductsFromBackend() {
 }
 
 function productCardTemplate(product) {
+  const discount = productDiscount(product);
   return `
     <img src="${escapeHtml(product.image)}" alt="${escapeHtml(product.name)}" />
     <div class="product-meta">
-      <span class="badge">${escapeHtml(product.badge)}</span>
       <h3>${escapeHtml(product.name)}</h3>
       <div class="rating"><i data-lucide="star"></i> ${escapeHtml(product.rating)} <span>${escapeHtml(product.stock)} in stock</span></div>
       <div class="price-row">
         <strong>${formatMoney(product.price)}</strong>
-        <small>${formatMoney(product.mrp)}</small>
+        ${Number(product.mrp || 0) > Number(product.price || 0) ? `<small>${formatMoney(product.mrp)}</small>` : ""}
+        ${discount ? `<span>${escapeHtml(discount)}</span>` : ""}
       </div>
       <button class="add-cart" type="button" data-product="${escapeHtml(product.name)}" data-price="${escapeHtml(product.price)}">
         <i data-lucide="shopping-bag"></i> Add
@@ -1884,24 +1884,6 @@ function defaultProductSpecs(product) {
   };
 }
 
-function renderPageBulkOffers(product) {
-  if (!pageBulkOffers) return;
-  const tiers = [
-    { qty: 2, discount: 1.34 },
-    { qty: 5, discount: 2.68 },
-    { qty: 10, discount: 4.7 },
-    { qty: 50, discount: 6.71 },
-  ];
-  pageBulkOffers.innerHTML = tiers
-    .map((tier) => {
-      const tierPrice = Math.max(1, Math.round(Number(product.price || 0) * (1 - tier.discount / 100)));
-      return `<button type="button" data-offer-qty="${tier.qty}"><small>Extra ${tier.discount}% off</small><strong>Buy ${tier.qty}+ for ${formatMoney(
-        tierPrice
-      )} each</strong></button>`;
-    })
-    .join("");
-}
-
 function renderPageDetailThumbs(product) {
   if (!pageDetailThumbs) return;
   const images = normalizeProductImages(product);
@@ -1952,7 +1934,7 @@ function renderProductDetailPage() {
     pageDetailImage.src = product.image;
     pageDetailImage.alt = product.name;
   }
-  if (pageDetailBadge) pageDetailBadge.textContent = product.badge || productDiscount(product) || "Admin added";
+  if (pageDetailBadge) pageDetailBadge.hidden = true;
   if (pageDetailDescription) pageDetailDescription.textContent = product.description || "Factory-direct dental product.";
   if (pageDetailRating) {
     pageDetailRating.innerHTML = `<i data-lucide="star"></i> ${escapeHtml(product.rating || "4.5")} <span>${escapeHtml(
@@ -1973,7 +1955,6 @@ function renderProductDetailPage() {
       .map(([label, value]) => `<div><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`)
       .join("");
   }
-  renderPageBulkOffers(product);
   renderPageDetailThumbs(product);
   setIcons();
 }
