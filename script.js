@@ -602,7 +602,7 @@ async function startRazorpayPayment(customer, messageNode, summaryNode, form) {
       currency: razorpayOrder.currency || paymentConfig.currency || "INR",
       name: paymentConfig.businessName || "Dental Factory",
       description: "Dental product order",
-      image: `${window.location.origin}/assets/dental-factory-logo-mark.png`,
+      image: `${window.location.origin}/assets/dental-factory-logo-mark.png?v=20260517-logo`,
       order_id: razorpayOrder.razorpayOrderId,
       prefill: {
         name: customer.name,
