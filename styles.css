@@ -265,6 +265,110 @@ svg {
   background: var(--sea);
 }
 
+.category-mega-panel {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  z-index: 35;
+  display: grid;
+  gap: 14px;
+  width: min(1240px, calc(100vw - 40px));
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #fff;
+  box-shadow: 0 22px 60px rgba(18, 35, 44, 0.18);
+  transform: translateX(-50%);
+}
+
+.category-mega-panel[hidden] {
+  display: none;
+}
+
+.category-menu-search {
+  display: flex;
+  align-items: center;
+  min-height: 46px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #fff;
+}
+
+.category-menu-search svg {
+  width: 18px;
+  height: 18px;
+  margin-left: 14px;
+  color: var(--muted);
+}
+
+.category-menu-search input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+}
+
+.category-menu-body {
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr);
+  gap: 18px;
+}
+
+.category-menu-list {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+}
+
+.category-menu-list button {
+  min-height: 42px;
+  padding: 0 12px;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  color: var(--ink);
+  background: #f4f9f8;
+  text-align: left;
+  font-weight: 800;
+}
+
+.category-menu-list button.is-active {
+  border-color: rgba(15, 139, 141, 0.18);
+  color: var(--sea-dark);
+  background: rgba(15, 139, 141, 0.12);
+}
+
+.category-menu-content section {
+  display: grid;
+  gap: 14px;
+}
+
+.category-menu-content section[hidden] {
+  display: none;
+}
+
+.category-menu-content h3 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.category-menu-content section > div {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(150px, 1fr));
+  gap: 12px 20px;
+}
+
+.category-menu-content a,
+.category-menu-directory {
+  color: var(--ink);
+  font-weight: 800;
+}
+
+.category-menu-view-all,
+.category-menu-directory {
+  color: var(--sea-dark);
+}
+
 main {
   width: 100%;
   max-width: 1240px;
@@ -1208,8 +1312,8 @@ main {
 
 .catalog-layout {
   display: grid;
-  grid-template-columns: 260px minmax(0, 1fr);
-  gap: 18px;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
   align-items: start;
 }
 
@@ -2923,6 +3027,18 @@ main {
 
   .nav-pill:last-child {
     grid-column: 1 / -1;
+  }
+
+  .category-mega-panel {
+    width: calc(100vw - 28px);
+    max-height: calc(100vh - 190px);
+    overflow: auto;
+    padding: 14px;
+  }
+
+  .category-menu-body,
+  .category-menu-content section > div {
+    grid-template-columns: 1fr;
   }
 
   .promo-slider {

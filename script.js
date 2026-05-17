@@ -209,6 +209,16 @@ const defaultAds = [
   },
 ];
 
+const categoryMenuGroups = [
+  { name: "Equipment", search: "equipment", items: ["Dental chairs", "Autoclaves", "RVG sensors", "Compressors", "X-ray units"] },
+  { name: "Rotary instruments", search: "rotary", items: ["Airotors", "Contra angle", "Micromotor", "Burs", "Cartridges"] },
+  { name: "Restoratives", search: "restorative", items: ["Composites", "Glass ionomer", "Bonding agents", "Cements", "Finishing polishers"] },
+  { name: "Endodontics", search: "endo", items: ["Files", "Endomotors", "Apex locators", "Irrigation", "Obturation"] },
+  { name: "Orthodontics", search: "ortho", items: ["Brackets", "Wires", "Bands", "Adhesives", "Elastomerics"] },
+  { name: "Sterilization", search: "sterilization", items: ["Pouches", "Disinfectants", "Autoclave supplies", "Surface cleaners", "Instrument trays"] },
+  { name: "Implants", search: "implants", items: ["Drivers", "Surgical kits", "Sutures", "Bone graft", "Impression copings"] },
+];
+
 const productDetails = {
   "Airotor Elite Handpiece": {
     badge: "18% off",
@@ -443,6 +453,18 @@ function uniqueImages(images) {
   return Array.from(new Set(images.map((image) => String(image || "").trim()).filter(Boolean)));
 }
 
+function isInlineImage(value) {
+  return String(value || "").startsWith("data:image/");
+}
+
+function safeLocalStorageSet(key, value) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // Uploaded images are persisted by the backend; localStorage only keeps a light fallback.
+  }
+}
+
 function normalizeProductImages(product) {
   const images = uniqueImages([product.image, ...parseImageList(product.images)]);
   return images.length ? images : ["assets/hero-dental-shop.png"];
@@ -484,7 +506,15 @@ function loadAdminProducts() {
 }
 
 function saveAdminProducts(products) {
-  localStorage.setItem(ADMIN_PRODUCTS_KEY, JSON.stringify(products.map(normalizeAdminProduct).filter((product) => product.name)));
+  const compactProducts = products
+    .map(normalizeAdminProduct)
+    .filter((product) => product.name)
+    .map((product) => ({
+      ...product,
+      image: isInlineImage(product.image) ? "assets/hero-dental-shop.png" : product.image,
+      images: product.images.filter((image) => !isInlineImage(image)),
+    }));
+  safeLocalStorageSet(ADMIN_PRODUCTS_KEY, compactProducts);
 }
 
 function normalizeAd(ad) {
@@ -512,7 +542,11 @@ function loadAdminAds() {
 }
 
 function saveAdminAds(ads) {
-  localStorage.setItem(ADMIN_ADS_KEY, JSON.stringify(ads.map(normalizeAd).filter((ad) => ad.title)));
+  const compactAds = ads
+    .map(normalizeAd)
+    .filter((ad) => ad.title)
+    .map((ad) => ({ ...ad, image: isInlineImage(ad.image) ? "" : ad.image }));
+  safeLocalStorageSet(ADMIN_ADS_KEY, compactAds);
 }
 
 async function fetchPublicAds() {
@@ -718,7 +752,11 @@ function loadAdminBrands() {
 }
 
 function saveAdminBrands(brands) {
-  localStorage.setItem(ADMIN_BRANDS_KEY, JSON.stringify(brands.map(normalizeBrand).filter((brand) => brand.name)));
+  const compactBrands = brands
+    .map(normalizeBrand)
+    .filter((brand) => brand.name)
+    .map((brand) => ({ ...brand, logo: isInlineImage(brand.logo) ? "" : brand.logo }));
+  safeLocalStorageSet(ADMIN_BRANDS_KEY, compactBrands);
 }
 
 async function fetchBackendBrands() {
@@ -2164,6 +2202,102 @@ function setActiveNavPill(button) {
   });
 }
 
+function categoryMenuLink(term) {
+  return `products.html?search=${encodeURIComponent(term)}`;
+}
+
+function categoryMenuTemplate() {
+  const first = categoryMenuGroups[0]?.name || "";
+  return `
+    <div class="category-mega-panel" hidden>
+      <label class="category-menu-search">
+        <i data-lucide="search"></i>
+        <input type="search" placeholder="Search Category" autocomplete="off" />
+      </label>
+      <div class="category-menu-body">
+        <div class="category-menu-list">
+          ${categoryMenuGroups
+            .map(
+              (group) => `
+                <button class="${group.name === first ? "is-active" : ""}" type="button" data-category-tab="${escapeHtml(group.name)}">
+                  ${escapeHtml(group.name)}
+                </button>
+              `
+            )
+            .join("")}
+        </div>
+        <div class="category-menu-content">
+          ${categoryMenuGroups
+            .map(
+              (group) => `
+                <section ${group.name === first ? "" : "hidden"} data-category-panel="${escapeHtml(group.name)}">
+                  <h3>${escapeHtml(group.name)}</h3>
+                  <div>
+                    ${group.items.map((item) => `<a href="${categoryMenuLink(item)}">${escapeHtml(item)}</a>`).join("")}
+                  </div>
+                  <a class="category-menu-view-all" href="${categoryMenuLink(group.search)}">View all ${escapeHtml(group.name)}</a>
+                </section>
+              `
+            )
+            .join("")}
+        </div>
+      </div>
+      <a class="category-menu-directory" href="products.html">View all products</a>
+    </div>
+  `;
+}
+
+function closeCategoryMenus() {
+  $$(".category-mega-panel").forEach((panel) => {
+    panel.hidden = true;
+  });
+  $$("[data-category-menu]").forEach((button) => {
+    button.classList.remove("is-active");
+    button.setAttribute("aria-expanded", "false");
+  });
+}
+
+function openCategoryMenu(button) {
+  const header = button.closest(".site-header");
+  const panel = header?.querySelector(".category-mega-panel");
+  if (!panel) return;
+  const willOpen = panel.hidden;
+  closeCategoryMenus();
+  panel.hidden = !willOpen;
+  button.classList.toggle("is-active", willOpen);
+  button.setAttribute("aria-expanded", String(willOpen));
+}
+
+function ensureCategoryMenus() {
+  $$(".site-header").forEach((header) => {
+    const nav = header.querySelector(".category-nav");
+    const trigger = Array.from(nav?.querySelectorAll(".nav-pill") || []).find((pill) => pill.textContent.trim().toLowerCase() === "category");
+    if (!nav || !trigger || header.querySelector(".category-mega-panel")) return;
+    trigger.classList.remove("is-active");
+    trigger.removeAttribute("data-scroll");
+    trigger.removeAttribute("data-hover-scroll");
+    trigger.setAttribute("data-category-menu", "");
+    trigger.setAttribute("aria-expanded", "false");
+    nav.insertAdjacentHTML("afterend", categoryMenuTemplate());
+    const panel = header.querySelector(".category-mega-panel");
+    panel?.querySelectorAll("[data-category-tab]").forEach((tab) => {
+      tab.addEventListener("click", () => {
+        const selected = tab.dataset.categoryTab;
+        panel.querySelectorAll("[data-category-tab]").forEach((item) => item.classList.toggle("is-active", item === tab));
+        panel.querySelectorAll("[data-category-panel]").forEach((section) => {
+          section.hidden = section.dataset.categoryPanel !== selected;
+        });
+      });
+    });
+    panel?.querySelector(".category-menu-search input")?.addEventListener("input", (event) => {
+      const term = event.currentTarget.value.trim().toLowerCase();
+      panel.querySelectorAll(".category-menu-content a:not(.category-menu-view-all)").forEach((link) => {
+        link.hidden = Boolean(term) && !link.textContent.toLowerCase().includes(term);
+      });
+    });
+  });
+}
+
 function applyFilter(filter = activeFilter) {
   refreshProductCards();
   if (productCards.length === 0) return;
@@ -2827,6 +2961,17 @@ async function initAdminAuth() {
 }
 
 document.addEventListener("click", async (event) => {
+  const categoryMenuButton = event.target.closest("[data-category-menu]");
+  if (categoryMenuButton) {
+    event.preventDefault();
+    openCategoryMenu(categoryMenuButton);
+    return;
+  }
+
+  if (!event.target.closest(".category-mega-panel")) {
+    closeCategoryMenus();
+  }
+
   const navHashLink = event.target.closest(".category-nav .nav-pill[href^='#']");
   if (navHashLink) {
     setActiveNavPill(navHashLink);
@@ -3083,16 +3228,6 @@ $$("[data-scroll]").forEach((button) => {
     const target = $(`#${button.dataset.scroll}`);
     if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
     else window.location.href = `index.html#${button.dataset.scroll}`;
-  });
-});
-
-$$("[data-hover-scroll]").forEach((button) => {
-  button.addEventListener("mouseenter", () => {
-    const target = $(`#${button.dataset.scroll}`);
-    if (target) {
-      setActiveNavPill(button);
-      target.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
   });
 });
 
@@ -3600,6 +3735,7 @@ renderBrandsOnStorefront();
 renderAdminProductsOnStorefront();
 injectDetailButtons();
 renderProductDetailPage();
+ensureCategoryMenus();
 setIcons();
 updateDeliveryUi();
 renderCart();
