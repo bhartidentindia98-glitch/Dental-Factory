@@ -352,6 +352,10 @@ function rawImageList(value) {
   return Array.isArray(value) ? value : String(value || "").split(/\r?\n|,/);
 }
 
+function asArray(value) {
+  return Array.isArray(value) ? value : [];
+}
+
 async function persistProductImages(product) {
   const draft = { ...product };
   const rawImages = Array.from(new Set([draft.image, ...rawImageList(draft.images)].map((image) => String(image || "").trim()).filter(Boolean)));
@@ -700,6 +704,35 @@ async function ensureDataFiles() {
     await fs.access(paymentAttemptsFile);
   } catch {
     await writeJson(paymentAttemptsFile, []);
+  }
+}
+
+async function migrateInlineUploads() {
+  const products = asArray(await readJson(productsFile, []));
+  if (products.some((product) => [product.image, ...rawImageList(product.images)].some((image) => inlineImagePayload(image)))) {
+    const migratedProducts = [];
+    for (const product of products) {
+      migratedProducts.push(normalizeProduct(await persistProductImages(product)));
+    }
+    await writeJson(productsFile, migratedProducts);
+  }
+
+  const brands = asArray(await readJson(brandsFile, []));
+  if (brands.some((brand) => inlineImagePayload(brand.logo))) {
+    const migratedBrands = [];
+    for (const brand of brands) {
+      migratedBrands.push(normalizeBrand(await persistBrandImage(brand)));
+    }
+    await writeJson(brandsFile, migratedBrands);
+  }
+
+  const ads = asArray(await readJson(adsFile, []));
+  if (ads.some((ad) => inlineImagePayload(ad.image))) {
+    const migratedAds = [];
+    for (const ad of ads) {
+      migratedAds.push(normalizeAd(await persistAdImage(ad)));
+    }
+    await writeJson(adsFile, migratedAds);
   }
 }
 
@@ -1434,6 +1467,7 @@ async function handleStatic(req, res, reqUrl) {
 }
 
 await ensureDataFiles();
+await migrateInlineUploads();
 
 const server = http.createServer(async (req, res) => {
   try {
