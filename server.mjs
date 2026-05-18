@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 const rootDir = path.dirname(fileURLToPath(import.meta.url));
 const port = Number(process.env.PORT || 5173);
 const host = process.env.HOST || "0.0.0.0";
+const siteUrl = String(process.env.SITE_URL || "https://bhartidentindia.com").replace(/\/+$/, "");
 const isProduction = process.env.NODE_ENV === "production";
 const localAdminPassword = "DentalFactory@2026";
 const adminPassword = process.env.ADMIN_PASSWORD || (isProduction ? "" : localAdminPassword);
@@ -66,6 +67,23 @@ const uploadImageExtensions = new Map([
   ["image/webp", ".webp"],
   ["image/gif", ".gif"],
 ]);
+const categoryRoutes = [
+  { name: "Equipment", slug: "dental-equipments", filter: "equipment", title: "Dental Equipments" },
+  { name: "Rotary instruments", slug: "rotary-instruments", filter: "rotary", title: "Rotary Instruments" },
+  { name: "Restoratives", slug: "restoratives", filter: "restorative", title: "Restoratives" },
+  { name: "Endodontics", slug: "endodontics", filter: "endodontics", title: "Endodontics" },
+  { name: "Orthodontics", slug: "orthodontics", filter: "orthodontics", title: "Orthodontics" },
+  { name: "Sterilization", slug: "sterilization", filter: "sterilization", title: "Sterilization" },
+  { name: "Implants", slug: "implants", filter: "implants", title: "Implants" },
+];
+const categoryRouteBySlug = new Map(categoryRoutes.map((category) => [category.slug, category]));
+const categoryRouteByKey = new Map(
+  categoryRoutes.flatMap((category) => [
+    [slugify(category.name), category],
+    [slugify(category.filter), category],
+    [category.slug, category],
+  ])
+);
 
 const publicStaticExtensions = new Set(mimeTypes.keys());
 const blockedStaticDirectories = new Set([".git", "data", "node_modules", "scripts"]);
@@ -505,6 +523,115 @@ function mergeBrands(brands, products = []) {
     byId.set(id, normalizeBrand({ name: product.brand, description: "Brand used in the current product catalog.", featured: true }));
   });
   return Array.from(byId.values()).sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function escapeHtml(value) {
+  return String(value || "").replace(/[&<>"']/g, (char) => {
+    const entities = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
+    return entities[char] || char;
+  });
+}
+
+function escapeXml(value) {
+  return escapeHtml(value);
+}
+
+function absoluteSiteUrl(pathname = "/") {
+  if (/^https?:\/\//i.test(String(pathname || ""))) return String(pathname);
+  const normalizedPath = pathname.startsWith("/") ? pathname : `/${pathname}`;
+  return `${siteUrl}${normalizedPath}`;
+}
+
+function seoDescription(value, fallback) {
+  const text = String(value || fallback || "")
+    .replace(/\s+/g, " ")
+    .trim();
+  return text.length > 155 ? `${text.slice(0, 152).trim()}...` : text;
+}
+
+function productSeoEntries(products) {
+  const usedSlugs = new Map();
+  return asArray(products)
+    .map(normalizeProduct)
+    .filter((product) => product.name)
+    .map((product) => {
+      const baseSlug = slugify(product.name) || product.id || "product";
+      const count = (usedSlugs.get(baseSlug) || 0) + 1;
+      usedSlugs.set(baseSlug, count);
+      const slug = count === 1 ? baseSlug : `${baseSlug}-${count}`;
+      return { ...product, seoSlug: slug, seoUrl: `/products/${slug}` };
+    });
+}
+
+function findProductForSeoSlug(products, slug) {
+  const target = slugify(slug);
+  return (
+    productSeoEntries(products).find((product) => product.seoSlug === target || product.id === target || slugify(product.name) === target) || null
+  );
+}
+
+function productSeoUrl(product, products) {
+  if (!product?.name) return "/products.html";
+  const id = product.id || slugify(product.name);
+  const entry = productSeoEntries(products).find((item) => item.id === id || item.name === product.name);
+  return entry?.seoUrl || `/products/${slugify(product.name)}`;
+}
+
+function categoryRouteForValue(value) {
+  return categoryRouteByKey.get(slugify(value));
+}
+
+function redirectPermanent(res, location) {
+  res.writeHead(301, withSecurityHeaders({ Location: location, "Cache-Control": "no-store, max-age=0" }));
+  res.end();
+}
+
+function injectHeadTags(html, tags) {
+  return String(html || "").replace("</head>", `${tags}\n  </head>`);
+}
+
+function replaceTitleAndMeta(html, { title, description, canonical }) {
+  let nextHtml = String(html || "");
+  if (title) nextHtml = nextHtml.replace(/<title>[\s\S]*?<\/title>/i, `<title>${escapeHtml(title)}</title>`);
+  if (description) {
+    nextHtml = nextHtml.replace(/<meta name="description" content="[^"]*" \/>/i, `<meta name="description" content="${escapeHtml(description)}" />`);
+  }
+  if (canonical) {
+    nextHtml = nextHtml.replace(/<link rel="canonical" href="[^"]*" \/>/i, `<link rel="canonical" href="${escapeHtml(canonical)}" />`);
+  }
+  return nextHtml;
+}
+
+function breadcrumbSchema(items) {
+  return `<script type="application/ld+json">${JSON.stringify({
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: items.map((item, index) => ({
+      "@type": "ListItem",
+      position: index + 1,
+      name: item.name,
+      item: item.url,
+    })),
+  })}</script>`;
+}
+
+function productSchema(product, canonical) {
+  return `<script type="application/ld+json">${JSON.stringify({
+    "@context": "https://schema.org",
+    "@type": "Product",
+    name: product.name,
+    brand: product.brand ? { "@type": "Brand", name: product.brand } : undefined,
+    image: product.image ? absoluteSiteUrl(product.image) : undefined,
+    description: seoDescription(product.description, `${product.name} from Dental Factory.`),
+    sku: product.id,
+    offers: {
+      "@type": "Offer",
+      priceCurrency: "INR",
+      price: String(product.price || 0),
+      availability: Number(product.stock || 0) > 0 ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
+      url: canonical,
+    },
+  })}</script>`;
 }
 
 function normalizePhone(value) {
@@ -1425,10 +1552,186 @@ async function serveUploadedAsset(res, requestPath) {
   }
 }
 
+async function readCatalogProducts() {
+  return asArray(await readJson(productsFile, [])).map(normalizeProduct).filter((product) => product.name);
+}
+
+async function handleLegacyRedirects(res, reqUrl) {
+  const requestPath = reqUrl.pathname;
+  if (requestPath === "/product-detail.html") {
+    const identifier = reqUrl.searchParams.get("product") || reqUrl.searchParams.get("id") || reqUrl.searchParams.get("name");
+    if (identifier) {
+      const products = await readCatalogProducts();
+      const product =
+        findProductForSeoSlug(products, identifier) ||
+        products.find((item) => String(item.name).toLowerCase() === String(identifier).toLowerCase()) ||
+        null;
+      redirectPermanent(res, absoluteSiteUrl(product ? productSeoUrl(product, products) : `/products/${slugify(identifier)}`));
+      return true;
+    }
+  }
+
+  if (requestPath === "/product.php") {
+    const legacyId = String(reqUrl.searchParams.get("id") || "").trim();
+    const products = await readCatalogProducts();
+    const product =
+      products.find((item) => item.id === slugify(legacyId) || String(item.id) === legacyId) ||
+      (Number.isInteger(Number(legacyId)) ? products[Number(legacyId) - 1] : null);
+    redirectPermanent(res, absoluteSiteUrl(product ? productSeoUrl(product, products) : "/products.html"));
+    return true;
+  }
+
+  if (requestPath === "/products.html" && reqUrl.searchParams.has("category")) {
+    const category = categoryRouteForValue(reqUrl.searchParams.get("category"));
+    if (category) {
+      redirectPermanent(res, absoluteSiteUrl(`/${category.slug}`));
+      return true;
+    }
+  }
+  return false;
+}
+
+async function serveProductSeoPage(res, slug) {
+  const products = await readCatalogProducts();
+  const product = findProductForSeoSlug(products, slug);
+  if (!product) {
+    sendText(res, 404, "Product not found");
+    return;
+  }
+
+  const canonicalPath = productSeoUrl(product, products);
+  const canonicalSlug = canonicalPath.replace(/^\/products\//, "");
+  if (String(slug || "") !== canonicalSlug) {
+    redirectPermanent(res, absoluteSiteUrl(canonicalPath));
+    return;
+  }
+
+  const canonical = absoluteSiteUrl(canonicalPath);
+  const description = seoDescription(product.description, `${product.name} by ${product.brand || "Dental Factory"} with clinic-ready pricing and dispatch support.`);
+  let html = await fs.readFile(path.join(rootDir, "product-detail.html"), "utf8");
+  html = stripRetiredAnnouncementHtml(html);
+  html = replaceTitleAndMeta(html, {
+    title: `${product.name} - Dental Factory`,
+    description,
+    canonical,
+  });
+  html = injectHeadTags(
+    html,
+    `    <base href="/" />
+    ${breadcrumbSchema([
+      { name: "Home", url: absoluteSiteUrl("/") },
+      { name: "Products", url: absoluteSiteUrl("/products.html") },
+      { name: product.name, url: canonical },
+    ])}
+    ${productSchema(product, canonical)}`
+  );
+  res.writeHead(
+    200,
+    withSecurityHeaders({
+      "Content-Type": "text/html; charset=utf-8",
+      "Cache-Control": "no-store, max-age=0",
+    })
+  );
+  res.end(html);
+}
+
+async function serveCategorySeoPage(res, category) {
+  const canonical = absoluteSiteUrl(`/${category.slug}`);
+  const description = `Shop ${category.title.toLowerCase()} at Dental Factory with clinic-ready products, GST billing, and dispatch support.`;
+  let html = await fs.readFile(path.join(rootDir, "products.html"), "utf8");
+  html = stripRetiredAnnouncementHtml(html);
+  html = replaceTitleAndMeta(html, {
+    title: `${category.title} - Dental Factory`,
+    description,
+    canonical,
+  });
+  html = injectHeadTags(
+    html,
+    `    <base href="/" />
+    ${breadcrumbSchema([
+      { name: "Home", url: absoluteSiteUrl("/") },
+      { name: "Products", url: absoluteSiteUrl("/products.html") },
+      { name: category.title, url: canonical },
+    ])}`
+  );
+  res.writeHead(
+    200,
+    withSecurityHeaders({
+      "Content-Type": "text/html; charset=utf-8",
+      "Cache-Control": "no-store, max-age=0",
+    })
+  );
+  res.end(html);
+}
+
+async function serveSitemap(res) {
+  const products = await readCatalogProducts();
+  const today = new Date().toISOString().slice(0, 10);
+  const productEntries = productSeoEntries(products);
+  const urls = [
+    { loc: absoluteSiteUrl("/"), priority: "1.0", changefreq: "daily" },
+    { loc: absoluteSiteUrl("/products.html"), priority: "0.9", changefreq: "daily" },
+    { loc: absoluteSiteUrl("/brands.html"), priority: "0.8", changefreq: "weekly" },
+    ...categoryRoutes.map((category) => ({ loc: absoluteSiteUrl(`/${category.slug}`), priority: "0.8", changefreq: "weekly" })),
+    ...productEntries.map((product) => ({
+      loc: absoluteSiteUrl(product.seoUrl),
+      priority: "0.7",
+      changefreq: "weekly",
+      lastmod: product.updatedAt ? String(product.updatedAt).slice(0, 10) : today,
+    })),
+    { loc: absoluteSiteUrl("/contact.html"), priority: "0.6", changefreq: "monthly" },
+    { loc: absoluteSiteUrl("/shipping-policy.html"), priority: "0.5", changefreq: "monthly" },
+    { loc: absoluteSiteUrl("/returns-refunds.html"), priority: "0.5", changefreq: "monthly" },
+    { loc: absoluteSiteUrl("/privacy-policy.html"), priority: "0.4", changefreq: "yearly" },
+    { loc: absoluteSiteUrl("/terms.html"), priority: "0.4", changefreq: "yearly" },
+  ];
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+${urls
+  .map(
+    (url) => `  <url>
+    <loc>${escapeXml(url.loc)}</loc>
+    <lastmod>${escapeXml(url.lastmod || today)}</lastmod>
+    <changefreq>${escapeXml(url.changefreq)}</changefreq>
+    <priority>${escapeXml(url.priority)}</priority>
+  </url>`
+  )
+  .join("\n")}
+</urlset>
+`;
+  res.writeHead(
+    200,
+    withSecurityHeaders({
+      "Content-Type": "application/xml; charset=utf-8",
+      "Cache-Control": "no-store, max-age=0",
+    })
+  );
+  res.end(xml);
+}
+
 async function handleStatic(req, res, reqUrl) {
   const requestPath = decodeURIComponent(reqUrl.pathname === "/" ? "/index.html" : reqUrl.pathname);
+  if (reqUrl.pathname === "/sitemap.xml") {
+    await serveSitemap(res);
+    return;
+  }
+  if (await handleLegacyRedirects(res, reqUrl)) return;
   if (requestPath.startsWith(`${uploadPublicPrefix}/`)) {
     await serveUploadedAsset(res, requestPath);
+    return;
+  }
+  const productRouteMatch = requestPath.match(/^\/products\/([^/]+)\/?$/);
+  if (productRouteMatch) {
+    if (requestPath.endsWith("/") && requestPath.length > 1) {
+      redirectPermanent(res, absoluteSiteUrl(requestPath.replace(/\/+$/, "")));
+      return;
+    }
+    await serveProductSeoPage(res, productRouteMatch[1]);
+    return;
+  }
+  const categoryRoute = categoryRouteBySlug.get(requestPath.replace(/^\/+|\/+$/g, ""));
+  if (categoryRoute) {
+    await serveCategorySeoPage(res, categoryRoute);
     return;
   }
 

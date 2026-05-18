@@ -218,6 +218,17 @@ const categoryMenuGroups = [
   { name: "Sterilization", search: "sterilization", items: ["Pouches", "Disinfectants", "Autoclave supplies", "Surface cleaners", "Instrument trays"] },
   { name: "Implants", search: "implants", items: ["Drivers", "Surgical kits", "Sutures", "Bone graft", "Impression copings"] },
 ];
+const categorySeoRoutes = [
+  { slug: "dental-equipments", filter: "equipment", terms: ["equipment", "equipments", "dental equipments"] },
+  { slug: "rotary-instruments", filter: "rotary", terms: ["rotary", "rotary instruments"] },
+  { slug: "restoratives", filter: "restorative", terms: ["restorative", "restoratives"] },
+  { slug: "endodontics", filter: "endodontics", terms: ["endo", "endodontics"] },
+  { slug: "orthodontics", filter: "orthodontics", terms: ["ortho", "orthodontics"] },
+  { slug: "sterilization", filter: "sterilization", terms: ["sterilization"] },
+  { slug: "implants", filter: "implants", terms: ["implants"] },
+];
+const categorySeoBySlug = new Map(categorySeoRoutes.map((route) => [route.slug, route]));
+const categorySeoByTerm = new Map(categorySeoRoutes.flatMap((route) => route.terms.map((term) => [slugifyProduct(term), route])));
 
 const productDetails = {
   "Airotor Elite Handpiece": {
@@ -1484,7 +1495,17 @@ function getCatalogProduct(identifier) {
 function productDetailUrl(identifier) {
   const product = getCatalogProduct(identifier);
   const key = product.id || slugifyProduct(product.name || identifier);
-  return `product-detail.html?product=${encodeURIComponent(key)}`;
+  return `/products/${encodeURIComponent(key)}`;
+}
+
+function routeProductIdentifier() {
+  const match = window.location.pathname.match(/^\/products\/([^/]+)\/?$/);
+  return match ? decodeURIComponent(match[1]) : "";
+}
+
+function routeCategoryFilter() {
+  const slug = window.location.pathname.replace(/^\/+|\/+$/g, "");
+  return categorySeoBySlug.get(slug)?.filter || "";
 }
 
 function refreshProductCards() {
@@ -2169,6 +2190,8 @@ function setActiveNavPill(button) {
 }
 
 function categoryMenuLink(term) {
+  const categoryRoute = categorySeoByTerm.get(slugifyProduct(term));
+  if (categoryRoute) return `/${categoryRoute.slug}`;
   return `products.html?search=${encodeURIComponent(term)}`;
 }
 
@@ -2529,7 +2552,7 @@ function updateAdminImagePreview() {
 
 function renderProductDetailPage() {
   if (!pageDetailTitle) return;
-  const identifier = searchParams().get("product") || searchParams().get("id") || searchParams().get("name") || pageDetailTitle.textContent;
+  const identifier = routeProductIdentifier() || searchParams().get("product") || searchParams().get("id") || searchParams().get("name") || pageDetailTitle.textContent;
   const product = getCatalogProduct(identifier);
   if (!product.name) return;
 
@@ -3740,7 +3763,8 @@ const initialSearch = searchParams().get("search");
 if (initialSearch && searchInput) searchInput.value = initialSearch;
 const initialBrand = searchParams().get("brand");
 if (initialBrand) activeBrand = initialBrand;
-applyFilter("all");
+const initialCategoryFilter = routeCategoryFilter();
+applyFilter(initialCategoryFilter || "all");
 syncPublicAds();
 syncBrandsFromBackend().then(() => {
   if (initialBrand) activeBrand = initialBrand;

@@ -19,10 +19,46 @@
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://bhartidentindia.com/product-detail.html</loc>
-    <lastmod>2026-05-16</lastmod>
+    <loc>https://bhartidentindia.com/dental-equipments</loc>
+    <lastmod>2026-05-18</lastmod>
     <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://bhartidentindia.com/rotary-instruments</loc>
+    <lastmod>2026-05-18</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://bhartidentindia.com/restoratives</loc>
+    <lastmod>2026-05-18</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://bhartidentindia.com/endodontics</loc>
+    <lastmod>2026-05-18</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://bhartidentindia.com/orthodontics</loc>
+    <lastmod>2026-05-18</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://bhartidentindia.com/sterilization</loc>
+    <lastmod>2026-05-18</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://bhartidentindia.com/implants</loc>
+    <lastmod>2026-05-18</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
   </url>
   <url>
     <loc>https://bhartidentindia.com/contact.html</loc>
