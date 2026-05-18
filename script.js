@@ -65,6 +65,38 @@ const checkoutPageForm = $("#checkoutPageForm");
 const checkoutPageMessage = $("#checkoutPageMessage");
 const accountPageForm = $("#accountPageForm");
 const accountPageMessage = $("#accountPageMessage");
+const customerLoginShell = $("#customerLoginShell");
+const customerLoginForm = $("#customerLoginForm");
+const customerOtpForm = $("#customerOtpForm");
+const customerLoginMessage = $("#customerLoginMessage");
+const customerOtpMessage = $("#customerOtpMessage");
+const customerOtpHelp = $("#customerOtpHelp");
+const customerDashboard = $("#customerDashboard");
+const customerDashboardName = $("#customerDashboardName");
+const customerDashboardMeta = $("#customerDashboardMeta");
+const customerOrderCount = $("#customerOrderCount");
+const customerPendingPayments = $("#customerPendingPayments");
+const customerTypeStat = $("#customerTypeStat");
+const customerAddressCount = $("#customerAddressCount");
+const customerProfileForm = $("#customerProfileForm");
+const customerProfileMessage = $("#customerProfileMessage");
+const customerAddressForm = $("#customerAddressForm");
+const customerAddressMessage = $("#customerAddressMessage");
+const customerTicketForm = $("#customerTicketForm");
+const customerTicketMessage = $("#customerTicketMessage");
+const customerPasswordForm = $("#customerPasswordForm");
+const customerPasswordMessage = $("#customerPasswordMessage");
+const customerSavedCart = $("#customerSavedCart");
+const customerWishlist = $("#customerWishlist");
+const customerOrderHistory = $("#customerOrderHistory");
+const customerAddresses = $("#customerAddresses");
+const customerDocuments = $("#customerDocuments");
+const customerTickets = $("#customerTickets");
+const customerNotifications = $("#customerNotifications");
+const customerAdminData = $("#customerAdminData");
+const saveCartToWishlistButton = $("#saveCartToWishlist");
+const customerLogoutButton = $("#customerLogoutButton");
+const customerLogoutAllButton = $("#customerLogoutAllButton");
 const trackOrderForm = $("#trackOrderForm");
 const trackOrderMessage = $("#trackOrderMessage");
 const trackingResult = $("#trackingResult");
@@ -109,6 +141,7 @@ let activeFilter = "all";
 let activeBrand = "";
 let activeSlide = 0;
 let latestAdminOrders = [];
+let latestCustomerDashboard = null;
 let adminSessionMinutes = 30;
 let adminAutoLogoutTimer = null;
 const ADMIN_PRODUCTS_KEY = "dentalFactoryAdminProducts";
@@ -121,6 +154,15 @@ const ADMIN_ADS_API = "/api/admin/ads";
 const ORDERS_API = "/api/orders";
 const ORDER_TRACK_API = "/api/orders/track";
 const ACCOUNTS_API = "/api/accounts";
+const CUSTOMER_OTP_START_API = "/api/customer/otp/start";
+const CUSTOMER_OTP_VERIFY_API = "/api/customer/otp/verify";
+const CUSTOMER_ME_API = "/api/customer/me";
+const CUSTOMER_PROFILE_API = "/api/customer/profile";
+const CUSTOMER_ADDRESS_API = "/api/customer/addresses";
+const CUSTOMER_TICKETS_API = "/api/customer/tickets";
+const CUSTOMER_PASSWORD_API = "/api/customer/password";
+const CUSTOMER_LOGOUT_API = "/api/customer/logout";
+const CUSTOMER_LOGOUT_ALL_API = "/api/customer/logout-all";
 const PAYMENT_CONFIG_API = "/api/payments/config";
 const RAZORPAY_ORDER_API = "/api/payments/razorpay/order";
 const RAZORPAY_VERIFY_API = "/api/payments/razorpay/verify";
@@ -128,6 +170,7 @@ const ADMIN_SESSION_API = "/api/admin/session";
 const ADMIN_LOGIN_API = "/api/admin/login";
 const ADMIN_LOGOUT_API = "/api/admin/logout";
 const CUSTOMER_ACCOUNT_KEY = "dentalFactoryCustomerAccount";
+const CUSTOMER_WISHLIST_KEY = "dentalFactoryWishlist";
 const DELIVERY_PIN_KEY = "dentalFactoryDeliveryPin";
 const LAST_ORDER_KEY = "dentalFactoryLastOrder";
 const CASH_ON_DELIVERY_METHOD = "Cash on delivery";
@@ -141,18 +184,24 @@ const ORDER_STATUS_FLOW = ["Request received", "Callback done", "Packed", "Shipp
 const ORDER_CANCELLED_STATUS = "Cancelled";
 const membershipPlans = {
   dentist: "Clinic Plus",
+  clinic: "Clinic Plus",
   student: "Student Access",
+  retail: "Retail Access",
   dealer: "Dealer Desk",
 };
 const accountTypeLabels = {
   dentist: "Clinic or doctor name",
+  clinic: "Clinic or business name",
   dealer: "Firm name",
   student: "College name",
+  retail: "Customer name",
 };
 const accountTypeNames = {
   dentist: "Dentist",
+  clinic: "Clinic",
   dealer: "Dealer",
   student: "Student",
+  retail: "Retail",
 };
 const DEFAULT_HSN = "9018";
 const DEFAULT_UNIT = "Pcs";
@@ -1193,6 +1242,74 @@ async function saveBackendAccount(account) {
   });
 }
 
+function customerLoginPayload(form) {
+  const formData = new FormData(form);
+  return {
+    login: String(formData.get("login") || "").trim(),
+    name: String(formData.get("name") || "").trim(),
+    clinic: String(formData.get("clinic") || "").trim(),
+    gstin: String(formData.get("gstin") || "").trim().toUpperCase(),
+    password: String(formData.get("password") || ""),
+    type: String(formData.get("type") || "clinic"),
+  };
+}
+
+async function requestCustomerOtp(payload) {
+  return apiJson(CUSTOMER_OTP_START_API, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+async function verifyCustomerOtp(payload) {
+  return apiJson(CUSTOMER_OTP_VERIFY_API, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+async function fetchCustomerDashboard() {
+  return apiJson(CUSTOMER_ME_API);
+}
+
+async function saveCustomerProfile(profile) {
+  return apiJson(CUSTOMER_PROFILE_API, {
+    method: "POST",
+    body: JSON.stringify(profile),
+  });
+}
+
+async function saveCustomerAddress(address) {
+  return apiJson(CUSTOMER_ADDRESS_API, {
+    method: "POST",
+    body: JSON.stringify(address),
+  });
+}
+
+async function deleteCustomerAddress(addressId) {
+  return apiJson(`${CUSTOMER_ADDRESS_API}/${encodeURIComponent(addressId)}`, {
+    method: "DELETE",
+  });
+}
+
+async function saveCustomerTicket(ticket) {
+  return apiJson(CUSTOMER_TICKETS_API, {
+    method: "POST",
+    body: JSON.stringify(ticket),
+  });
+}
+
+async function updateCustomerPassword(password) {
+  return apiJson(CUSTOMER_PASSWORD_API, {
+    method: "POST",
+    body: JSON.stringify({ password }),
+  });
+}
+
+async function logoutCustomer(allDevices = false) {
+  return apiJson(allDevices ? CUSTOMER_LOGOUT_ALL_API : CUSTOMER_LOGOUT_API, { method: "POST" });
+}
+
 function loadCustomerAccount() {
   try {
     return JSON.parse(localStorage.getItem(CUSTOMER_ACCOUNT_KEY) || "null");
@@ -1429,6 +1546,243 @@ function updateAccountButtons() {
   });
   hydrateAccountForms(account);
   updateMembershipUi();
+}
+
+function customerTypeName(type = "clinic") {
+  const names = {
+    clinic: "Clinic",
+    dentist: "Clinic",
+    dealer: "Dealer",
+    retail: "Retail",
+    student: "Retail",
+  };
+  return names[String(type || "clinic").toLowerCase()] || names.clinic;
+}
+
+function customerName(account = {}) {
+  return account.clinic || account.name || account.email || account.mobile || "Customer";
+}
+
+function setCustomerMessage(node, message, isError = false) {
+  if (!node) return;
+  node.textContent = message || "";
+  node.classList.toggle("is-error", Boolean(isError));
+}
+
+function customerFormData(form) {
+  return Object.fromEntries(new FormData(form).entries());
+}
+
+function loadWishlist() {
+  try {
+    return JSON.parse(localStorage.getItem(CUSTOMER_WISHLIST_KEY) || "[]");
+  } catch {
+    return [];
+  }
+}
+
+function saveWishlist(items) {
+  safeLocalStorageSet(CUSTOMER_WISHLIST_KEY, items.slice(0, 60));
+}
+
+function cartSnapshot() {
+  return Array.from(cart, ([name, item]) => ({
+    name,
+    price: Number(item.price || 0),
+    qty: Number(item.qty || 1),
+    savedAt: new Date().toISOString(),
+  }));
+}
+
+function emptyCustomerList(node, message) {
+  if (!node) return;
+  node.innerHTML = `<p class="customer-empty">${escapeHtml(message)}</p>`;
+}
+
+function renderCustomerSavedCart() {
+  if (!customerSavedCart) return;
+  const items = cartSnapshot();
+  if (!items.length) {
+    emptyCustomerList(customerSavedCart, "Cart is empty right now.");
+    return;
+  }
+  customerSavedCart.innerHTML = items
+    .map(
+      (item) => `
+        <div class="customer-line">
+          <div><strong>${escapeHtml(item.name)}</strong><span>${escapeHtml(formatMoney(item.price))} x ${escapeHtml(item.qty)}</span></div>
+          <b>${escapeHtml(formatMoney(item.price * item.qty))}</b>
+        </div>`
+    )
+    .join("");
+}
+
+function renderCustomerWishlist() {
+  if (!customerWishlist) return;
+  const items = loadWishlist();
+  if (!items.length) {
+    emptyCustomerList(customerWishlist, "No saved items yet.");
+    return;
+  }
+  customerWishlist.innerHTML = items
+    .map(
+      (item) => `
+        <div class="customer-line">
+          <div><strong>${escapeHtml(item.name)}</strong><span>${escapeHtml(formatMoney(item.price || 0))} x ${escapeHtml(item.qty || 1)}</span></div>
+          <button class="outline-link" type="button" data-wishlist-add="${escapeHtml(item.name)}">Add</button>
+        </div>`
+    )
+    .join("");
+}
+
+function renderCustomerOrders(orders = []) {
+  if (!customerOrderHistory) return;
+  if (!orders.length) {
+    emptyCustomerList(customerOrderHistory, "No orders yet. Orders placed from checkout will appear here.");
+    return;
+  }
+  customerOrderHistory.innerHTML = orders
+    .map(
+      (order) => `
+        <article class="customer-order" data-customer-order-id="${escapeHtml(order.id)}">
+          <div>
+            <span class="badge">${escapeHtml(order.status || "Request received")}</span>
+            <h3>${escapeHtml(order.id)}</h3>
+            <p>${escapeHtml(orderItemSummary(order))}</p>
+            <small>${escapeHtml(formatDateTime(order.createdAt))} | ${escapeHtml(order.payment?.status || "Payment pending")} | ${escapeHtml(formatMoney(order.total || 0))}</small>
+          </div>
+          <div class="customer-actions">
+            <a class="secondary-link" href="track-order.html?order=${encodeURIComponent(order.id)}">Track</a>
+            <button class="outline-link" type="button" data-customer-invoice="${escapeHtml(order.id)}">Invoice</button>
+            <button class="outline-link" type="button" data-repeat-order="${escapeHtml(order.id)}">Repeat order</button>
+          </div>
+        </article>`
+    )
+    .join("");
+}
+
+function renderCustomerAddresses(addresses = []) {
+  if (!customerAddresses) return;
+  if (!addresses.length) {
+    emptyCustomerList(customerAddresses, "No delivery address saved.");
+    return;
+  }
+  customerAddresses.innerHTML = addresses
+    .map(
+      (address) => `
+        <div class="customer-line">
+          <div>
+            <strong>${escapeHtml(address.label || "Address")}${address.isDefault ? " - Default" : ""}</strong>
+            <span>${escapeHtml(address.line1 || "")}${address.city ? `, ${escapeHtml(address.city)}` : ""}${address.pincode ? ` - ${escapeHtml(address.pincode)}` : ""}</span>
+          </div>
+          <button class="outline-link danger-link" type="button" data-delete-customer-address="${escapeHtml(address.id)}">Delete</button>
+        </div>`
+    )
+    .join("");
+}
+
+function renderCustomerDocuments(documents = []) {
+  if (!customerDocuments) return;
+  if (!documents.length) {
+    emptyCustomerList(customerDocuments, "Invoices, quotations, warranty cards, and manuals will appear after orders.");
+    return;
+  }
+  customerDocuments.innerHTML = documents
+    .map(
+      (document) => `
+        <div class="customer-line">
+          <div><strong>${escapeHtml(document.title || document.type)}</strong><span>${escapeHtml(document.type || "Document")} | ${escapeHtml(document.status || "Available")}</span></div>
+          ${document.link ? `<a class="secondary-link" href="${escapeHtml(document.link)}">Open</a>` : ""}
+        </div>`
+    )
+    .join("");
+}
+
+function renderCustomerTickets(tickets = []) {
+  if (!customerTickets) return;
+  if (!tickets.length) {
+    emptyCustomerList(customerTickets, "No support ticket raised yet.");
+    return;
+  }
+  customerTickets.innerHTML = tickets
+    .map(
+      (ticket) => `
+        <div class="customer-line">
+          <div><strong>${escapeHtml(ticket.subject || ticket.type)}</strong><span>${escapeHtml(ticket.status || "Open")} | ${escapeHtml(formatDateTime(ticket.createdAt))}</span></div>
+          <span>${escapeHtml(ticket.orderId || "")}</span>
+        </div>`
+    )
+    .join("");
+}
+
+function renderCustomerNotifications(notifications = []) {
+  if (!customerNotifications) return;
+  if (!notifications.length) {
+    emptyCustomerList(customerNotifications, "No notifications right now.");
+    return;
+  }
+  customerNotifications.innerHTML = notifications
+    .map(
+      (notification) => `
+        <div class="customer-line">
+          <div><strong>${escapeHtml(notification.title || notification.type)}</strong><span>${escapeHtml(notification.message || "")}</span></div>
+          <small>${escapeHtml(formatDateTime(notification.createdAt))}</small>
+        </div>`
+    )
+    .join("");
+}
+
+function renderCustomerAdminData(data = {}) {
+  if (!customerAdminData) return;
+  customerAdminData.innerHTML = `
+    <div><dt>Customer type</dt><dd>${escapeHtml(data.customerType || "Clinic")}</dd></div>
+    <div><dt>Purchase frequency</dt><dd>${escapeHtml(data.purchaseFrequency || "No orders yet")}</dd></div>
+    <div><dt>Pending payments</dt><dd>${escapeHtml(formatMoney(data.pendingPayments || 0))}</dd></div>
+    <div><dt>Service history</dt><dd>${escapeHtml((data.serviceHistory || []).join(", ") || "No service requests yet")}</dd></div>
+  `;
+}
+
+function hydrateCustomerProfileForm(account = {}) {
+  if (!customerProfileForm) return;
+  customerProfileForm.elements.name.value = account.name || "";
+  customerProfileForm.elements.mobile.value = account.mobile || "";
+  customerProfileForm.elements.email.value = account.email || "";
+  customerProfileForm.elements.clinic.value = account.clinic || "";
+  customerProfileForm.elements.gstin.value = account.gstin || "";
+  customerProfileForm.elements.type.value = ["clinic", "dealer", "retail"].includes(account.type) ? account.type : account.type === "dealer" ? "dealer" : "clinic";
+}
+
+function renderCustomerDashboard(payload) {
+  if (!customerDashboard) return;
+  latestCustomerDashboard = payload || {};
+  const account = latestCustomerDashboard.account || {};
+  saveCustomerAccount(account);
+  updateAccountButtons();
+  customerLoginShell?.setAttribute("hidden", "");
+  customerDashboard.hidden = false;
+  if (customerDashboardName) customerDashboardName.textContent = customerName(account);
+  if (customerDashboardMeta) {
+    customerDashboardMeta.textContent = `${account.mobile || account.email || "Login verified"} | ${customerTypeName(account.type)} | ${account.status || "Verified"}`;
+  }
+  if (customerOrderCount) customerOrderCount.textContent = String((latestCustomerDashboard.orders || []).length);
+  if (customerPendingPayments) customerPendingPayments.textContent = formatMoney(latestCustomerDashboard.account?.pendingPayments || latestCustomerDashboard.adminData?.pendingPayments || 0);
+  if (customerTypeStat) customerTypeStat.textContent = latestCustomerDashboard.adminData?.customerType || customerTypeName(account.type);
+  if (customerAddressCount) customerAddressCount.textContent = String((account.addresses || []).length);
+  hydrateCustomerProfileForm(account);
+  renderCustomerSavedCart();
+  renderCustomerWishlist();
+  renderCustomerOrders(latestCustomerDashboard.orders || []);
+  renderCustomerAddresses(account.addresses || []);
+  renderCustomerDocuments(latestCustomerDashboard.documents || []);
+  renderCustomerTickets(account.tickets || []);
+  renderCustomerNotifications(latestCustomerDashboard.notifications || []);
+  renderCustomerAdminData(latestCustomerDashboard.adminData || {});
+  setIcons();
+}
+
+function showCustomerLogin() {
+  if (customerLoginShell) customerLoginShell.hidden = false;
+  if (customerDashboard) customerDashboard.hidden = true;
 }
 
 async function fetchBackendOrders() {
@@ -2012,6 +2366,7 @@ function renderCart() {
   renderCartDrawer();
   renderCartPage();
   renderSummary(checkoutPageSummary);
+  renderCustomerSavedCart();
   updatePaymentOptions();
 }
 
@@ -3258,7 +3613,12 @@ if (cartButton) {
 if (closeCart) closeCart.addEventListener("click", hideCart);
 if (checkoutButton) checkoutButton.addEventListener("click", openCheckout);
 if (closeCheckout) closeCheckout.addEventListener("click", hideCheckout);
-$$("[id='loginButton']").forEach((button) => button.addEventListener("click", openAccount));
+$$("[id='loginButton']").forEach((button) =>
+  button.addEventListener("click", (event) => {
+    if (customerLoginForm || customerDashboard) return;
+    openAccount(event);
+  })
+);
 if (accountModal) ensureAccountModal();
 if (closeProduct) closeProduct.addEventListener("click", hideProductDetails);
 
@@ -3440,6 +3800,221 @@ if (initialAccountForm && !initialAccountForm.dataset.accountWired) {
 }
 
 accountPageForm?.addEventListener("submit", (event) => submitAccountForm(event, accountPageMessage));
+
+customerLoginForm?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const submitButton = form.querySelector("button[type='submit']");
+  const payload = customerLoginPayload(form);
+  submitButton.disabled = true;
+  setCustomerMessage(customerLoginMessage, "Sending OTP...");
+  try {
+    const response = await requestCustomerOtp(payload);
+    if (customerOtpForm) {
+      customerOtpForm.hidden = false;
+      customerOtpForm.elements.login.value = payload.login;
+      customerOtpForm.elements.otp.value = "";
+      customerOtpForm.elements.otp.focus();
+    }
+    if (customerOtpHelp) {
+      customerOtpHelp.textContent = `OTP sent to ${response.otpSentTo || "your login"}. Demo OTP: ${response.demoOtp || "check SMS"}`;
+    }
+    setCustomerMessage(customerLoginMessage, "OTP generated. Enter it below to open dashboard.");
+  } catch (error) {
+    setCustomerMessage(customerLoginMessage, error.message, true);
+  } finally {
+    submitButton.disabled = false;
+  }
+});
+
+customerOtpForm?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const submitButton = form.querySelector("button[type='submit']");
+  const payload = {
+    login: String(form.elements.login.value || "").trim(),
+    otp: String(form.elements.otp.value || "").trim(),
+  };
+  submitButton.disabled = true;
+  setCustomerMessage(customerOtpMessage, "Verifying OTP...");
+  try {
+    const dashboard = await verifyCustomerOtp(payload);
+    setCustomerMessage(customerOtpMessage, "Login verified.");
+    renderCustomerDashboard(dashboard);
+  } catch (error) {
+    setCustomerMessage(customerOtpMessage, error.message, true);
+  } finally {
+    submitButton.disabled = false;
+  }
+});
+
+customerProfileForm?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const submitButton = form.querySelector("button[type='submit']");
+  submitButton.disabled = true;
+  setCustomerMessage(customerProfileMessage, "Saving profile...");
+  try {
+    const dashboard = await saveCustomerProfile(customerFormData(form));
+    renderCustomerDashboard(dashboard);
+    setCustomerMessage(customerProfileMessage, "Profile saved.");
+  } catch (error) {
+    setCustomerMessage(customerProfileMessage, error.message, true);
+  } finally {
+    submitButton.disabled = false;
+  }
+});
+
+customerAddressForm?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const submitButton = form.querySelector("button[type='submit']");
+  const payload = {
+    ...customerFormData(form),
+    isDefault: Boolean(form.elements.isDefault?.checked),
+  };
+  submitButton.disabled = true;
+  setCustomerMessage(customerAddressMessage, "Saving address...");
+  try {
+    const dashboard = await saveCustomerAddress(payload);
+    form.reset();
+    renderCustomerDashboard(dashboard);
+    setCustomerMessage(customerAddressMessage, "Address saved.");
+  } catch (error) {
+    setCustomerMessage(customerAddressMessage, error.message, true);
+  } finally {
+    submitButton.disabled = false;
+  }
+});
+
+customerTicketForm?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const submitButton = form.querySelector("button[type='submit']");
+  submitButton.disabled = true;
+  setCustomerMessage(customerTicketMessage, "Raising support ticket...");
+  try {
+    const dashboard = await saveCustomerTicket(customerFormData(form));
+    form.reset();
+    renderCustomerDashboard(dashboard);
+    setCustomerMessage(customerTicketMessage, "Ticket saved. Support can call or WhatsApp from here.");
+  } catch (error) {
+    setCustomerMessage(customerTicketMessage, error.message, true);
+  } finally {
+    submitButton.disabled = false;
+  }
+});
+
+customerPasswordForm?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const password = String(new FormData(event.currentTarget).get("password") || "");
+  const submitButton = event.currentTarget.querySelector("button[type='submit']");
+  submitButton.disabled = true;
+  setCustomerMessage(customerPasswordMessage, "Updating password option...");
+  try {
+    await updateCustomerPassword(password);
+    event.currentTarget.reset();
+    setCustomerMessage(customerPasswordMessage, "Password updated.");
+  } catch (error) {
+    setCustomerMessage(customerPasswordMessage, error.message, true);
+  } finally {
+    submitButton.disabled = false;
+  }
+});
+
+saveCartToWishlistButton?.addEventListener("click", () => {
+  const items = cartSnapshot();
+  if (!items.length) {
+    showToast("Cart is empty.");
+    return;
+  }
+  const existing = loadWishlist();
+  const merged = new Map(existing.map((item) => [item.name, item]));
+  items.forEach((item) => merged.set(item.name, { ...merged.get(item.name), ...item }));
+  saveWishlist(Array.from(merged.values()));
+  renderCustomerWishlist();
+  showToast("Cart saved for later.");
+});
+
+customerLogoutButton?.addEventListener("click", async () => {
+  try {
+    await logoutCustomer(false);
+  } catch {}
+  localStorage.removeItem(CUSTOMER_ACCOUNT_KEY);
+  updateAccountButtons();
+  showCustomerLogin();
+});
+
+customerLogoutAllButton?.addEventListener("click", async () => {
+  try {
+    await logoutCustomer(true);
+  } catch {}
+  localStorage.removeItem(CUSTOMER_ACCOUNT_KEY);
+  updateAccountButtons();
+  showCustomerLogin();
+});
+
+document.addEventListener("click", async (event) => {
+  const repeatButton = event.target.closest("[data-repeat-order]");
+  if (repeatButton && latestCustomerDashboard) {
+    const order = (latestCustomerDashboard.orders || []).find((item) => item.id === repeatButton.dataset.repeatOrder);
+    if (!order) return;
+    (order.items || []).forEach((item) => {
+      const existing = cart.get(item.name) || { price: Number(item.price || 0), qty: 0 };
+      existing.price = Number(item.price || existing.price || 0);
+      existing.qty += Number(item.qty || 1);
+      cart.set(item.name, existing);
+    });
+    renderCart();
+    showToast(`${order.id} items added to cart.`);
+    return;
+  }
+
+  const invoiceButton = event.target.closest("[data-customer-invoice]");
+  if (invoiceButton && latestCustomerDashboard) {
+    const order = (latestCustomerDashboard.orders || []).find((item) => item.id === invoiceButton.dataset.customerInvoice);
+    if (order) openInvoiceWindow(order);
+    return;
+  }
+
+  const wishlistButton = event.target.closest("[data-wishlist-add]");
+  if (wishlistButton) {
+    const item = loadWishlist().find((entry) => entry.name === wishlistButton.dataset.wishlistAdd);
+    if (item) addToCart(item.name, item.price || 0, { open: false });
+    return;
+  }
+
+  const deleteAddressButton = event.target.closest("[data-delete-customer-address]");
+  if (deleteAddressButton) {
+    deleteAddressButton.disabled = true;
+    setCustomerMessage(customerAddressMessage, "Deleting address...");
+    try {
+      const dashboard = await deleteCustomerAddress(deleteAddressButton.dataset.deleteCustomerAddress);
+      renderCustomerDashboard(dashboard);
+      setCustomerMessage(customerAddressMessage, "Address deleted.");
+    } catch (error) {
+      deleteAddressButton.disabled = false;
+      setCustomerMessage(customerAddressMessage, error.message, true);
+    }
+  }
+});
+
+async function initCustomerPage() {
+  if (!customerLoginForm && !customerDashboard) return;
+  const savedAccount = loadCustomerAccount();
+  if (savedAccount && customerLoginForm) {
+    customerLoginForm.elements.login.value = savedAccount.email || savedAccount.mobile || "";
+    customerLoginForm.elements.name.value = savedAccount.name || "";
+    customerLoginForm.elements.clinic.value = savedAccount.clinic || "";
+    customerLoginForm.elements.gstin.value = savedAccount.gstin || "";
+  }
+  try {
+    const dashboard = await fetchCustomerDashboard();
+    renderCustomerDashboard(dashboard);
+  } catch {
+    showCustomerLogin();
+  }
+}
 
 trackOrderForm?.addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -3776,4 +4351,5 @@ syncProductsFromBackend().then(() => {
   renderAdminMetrics(latestAdminOrders);
 });
 initAdminAuth();
+initCustomerPage();
 autoTrackInitialOrder();

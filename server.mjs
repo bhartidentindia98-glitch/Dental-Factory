@@ -35,7 +35,10 @@ const ordersFile = path.join(dataDir, "orders.json");
 const accountsFile = path.join(dataDir, "accounts.json");
 const paymentAttemptsFile = path.join(dataDir, "payment-attempts.json");
 const adminCookieName = "df_admin_session";
+const customerCookieName = "df_customer_session";
 const adminSessionMaxAgeSeconds = adminSessionMinutes * 60;
+const customerSessionMaxAgeSeconds = 30 * 24 * 60 * 60;
+const customerOtpMaxAgeSeconds = 10 * 60;
 const maxPublicJsonBodyBytes = 256 * 1024;
 const maxAdminJsonBodyBytes = 64 * 1024 * 1024;
 const rateLimitStore = new Map();
@@ -638,16 +641,171 @@ function normalizePhone(value) {
   return String(value || "").replace(/\D/g, "");
 }
 
-function normalizeAccount(account) {
-  const mobile = normalizePhone(account.mobile);
-  return {
-    id: account.id || createPublicId("AC"),
-    mobile,
-    clinic: String(account.clinic || "").trim(),
-    type: String(account.type || "dentist").trim(),
-    status: String(account.status || "Callback pending"),
-    createdAt: account.createdAt || new Date().toISOString(),
+function normalizeEmail(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function cleanText(value, maxLength = 500) {
+  return String(value || "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, maxLength);
+}
+
+function normalizeCustomerType(value) {
+  const type = String(value || "clinic").trim().toLowerCase();
+  if (["clinic", "dentist", "dealer", "retail", "student"].includes(type)) return type;
+  return "clinic";
+}
+
+function customerTypeLabel(type = "clinic") {
+  const labels = {
+    clinic: "Clinic",
+    dentist: "Clinic",
+    dealer: "Dealer",
+    retail: "Retail",
+    student: "Retail",
   };
+  return labels[normalizeCustomerType(type)] || labels.clinic;
+}
+
+function normalizeLoginIdentifier(value) {
+  const raw = String(value || "").trim();
+  const phone = normalizePhone(raw);
+  if (phone.length >= 10 && !raw.includes("@")) return phone.slice(-10);
+  const email = normalizeEmail(raw);
+  return email.includes("@") ? email : "";
+}
+
+function normalizeAddress(address = {}) {
+  const line1 = cleanText(address.line1 || address.address || "", 600);
+  return {
+    id: String(address.id || createPublicId("AD")).trim(),
+    label: cleanText(address.label || "Clinic address", 80),
+    name: cleanText(address.name || "", 120),
+    phone: normalizePhone(address.phone),
+    line1,
+    city: cleanText(address.city || "", 80),
+    state: cleanText(address.state || "", 80),
+    pincode: normalizePhone(address.pincode).slice(0, 6),
+    gstin: cleanText(address.gstin || "", 18).toUpperCase(),
+    isDefault: Boolean(address.isDefault),
+    updatedAt: address.updatedAt || new Date().toISOString(),
+  };
+}
+
+function normalizeTicket(ticket = {}) {
+  return {
+    id: String(ticket.id || createPublicId("TK")).trim(),
+    type: cleanText(ticket.type || "Complaint", 80),
+    subject: cleanText(ticket.subject || "", 160),
+    message: cleanText(ticket.message || "", 1200),
+    orderId: cleanText(ticket.orderId || "", 40),
+    status: cleanText(ticket.status || "Open", 80),
+    createdAt: ticket.createdAt || new Date().toISOString(),
+    updatedAt: ticket.updatedAt || ticket.createdAt || new Date().toISOString(),
+  };
+}
+
+function normalizeNotification(notification = {}) {
+  return {
+    id: String(notification.id || createPublicId("NT")).trim(),
+    title: cleanText(notification.title || "", 120),
+    message: cleanText(notification.message || "", 500),
+    type: cleanText(notification.type || "Account", 80),
+    createdAt: notification.createdAt || new Date().toISOString(),
+    read: Boolean(notification.read),
+  };
+}
+
+function normalizeAccount(account) {
+  const email = normalizeEmail(account.email || (String(account.login || "").includes("@") ? account.login : ""));
+  const mobile = normalizePhone(account.mobile || account.phone || (!String(account.login || "").includes("@") ? account.login : "")).slice(-10);
+  const login = normalizeLoginIdentifier(account.login) || mobile || email;
+  const type = normalizeCustomerType(account.type || account.customerType);
+  return {
+    id: String(account.id || createPublicId("AC")).trim(),
+    login,
+    mobile,
+    email,
+    name: cleanText(account.name || account.customerName || "", 140),
+    clinic: cleanText(account.clinic || account.business || account.company || "", 160),
+    type,
+    customerType: customerTypeLabel(type),
+    gstin: cleanText(account.gstin || "", 18).toUpperCase(),
+    status: cleanText(account.status || "Callback pending", 80),
+    passwordHash: String(account.passwordHash || ""),
+    passwordUpdatedAt: account.passwordUpdatedAt || "",
+    otpHash: String(account.otpHash || ""),
+    otpExpiresAt: account.otpExpiresAt || "",
+    otpIssuedAt: account.otpIssuedAt || "",
+    verifiedAt: account.verifiedAt || "",
+    logoutAllAt: account.logoutAllAt || "",
+    addresses: asArray(account.addresses).map(normalizeAddress).filter((address) => address.line1),
+    tickets: asArray(account.tickets).map(normalizeTicket).filter((ticket) => ticket.subject || ticket.message),
+    notifications: asArray(account.notifications).map(normalizeNotification).filter((notification) => notification.title || notification.message),
+    documents: asArray(account.documents).map((document) => ({
+      id: String(document.id || createPublicId("DOC")).trim(),
+      type: cleanText(document.type || "Document", 80),
+      title: cleanText(document.title || "", 160),
+      status: cleanText(document.status || "Available", 80),
+      link: cleanText(document.link || "", 300),
+      createdAt: document.createdAt || new Date().toISOString(),
+    })).filter((document) => document.title),
+    purchaseFrequency: cleanText(account.purchaseFrequency || "New customer", 80),
+    pendingPayments: Number(account.pendingPayments || 0),
+    serviceHistory: asArray(account.serviceHistory).map((item) => cleanText(item, 240)).filter(Boolean),
+    createdAt: account.createdAt || new Date().toISOString(),
+    updatedAt: account.updatedAt || account.createdAt || new Date().toISOString(),
+  };
+}
+
+function safeAccount(account) {
+  const normalized = normalizeAccount(account);
+  const { passwordHash, otpHash, otpExpiresAt, otpIssuedAt, logoutAllAt, ...safe } = normalized;
+  return {
+    ...safe,
+    hasPassword: Boolean(passwordHash),
+  };
+}
+
+function customerLoginMatches(account, login) {
+  const normalized = normalizeAccount(account);
+  const key = normalizeLoginIdentifier(login);
+  if (!key) return false;
+  return normalized.login === key || normalized.mobile === key || normalized.email === key;
+}
+
+function findCustomerIndex(accounts, loginOrId) {
+  const key = normalizeLoginIdentifier(loginOrId);
+  const id = String(loginOrId || "").trim();
+  return accounts.findIndex((account) => {
+    const normalized = normalizeAccount(account);
+    return normalized.id === id || (key && (normalized.login === key || normalized.mobile === key || normalized.email === key));
+  });
+}
+
+function createOtpCode() {
+  return String(crypto.randomInt(0, 1000000)).padStart(6, "0");
+}
+
+function hashCustomerOtp(login, otp) {
+  return crypto.createHmac("sha256", sessionSecret).update(`${normalizeLoginIdentifier(login)}:${String(otp || "").trim()}`).digest("base64url");
+}
+
+function hashCustomerPassword(password) {
+  const salt = crypto.randomBytes(16).toString("base64url");
+  const hash = crypto.pbkdf2Sync(String(password || ""), salt, 100000, 32, "sha256").toString("base64url");
+  return `pbkdf2:${salt}:${hash}`;
+}
+
+function maskLogin(value) {
+  const login = normalizeLoginIdentifier(value);
+  if (login.includes("@")) {
+    const [name, domain] = login.split("@");
+    return `${name.slice(0, 2)}***@${domain}`;
+  }
+  return login.length >= 4 ? `${"*".repeat(Math.max(0, login.length - 4))}${login.slice(-4)}` : "";
 }
 
 function normalizeOrderItem(item) {
@@ -727,6 +885,96 @@ function publicOrder(order) {
   };
 }
 
+function customerOwnsOrder(account, order) {
+  const safe = safeOrder(order);
+  const phone = normalizePhone(safe.customer.phone);
+  const accountPhone = normalizePhone(account.mobile);
+  const accountEmail = normalizeEmail(account.email);
+  const orderEmail = normalizeEmail(safe.customer.email);
+  return (
+    (accountPhone.length >= 10 && phone.endsWith(accountPhone.slice(-10))) ||
+    (accountEmail && orderEmail && accountEmail === orderEmail)
+  );
+}
+
+function customerDocumentsForOrders(orders) {
+  return orders.flatMap((order) => [
+    {
+      id: `invoice-${order.id}`,
+      type: "Invoice",
+      title: `Invoice for ${order.id}`,
+      status: order.payment?.status === "Paid" || order.status === "Delivered" ? "Ready to download" : "Available after billing",
+      link: `track-order.html?order=${encodeURIComponent(order.id)}`,
+      createdAt: order.createdAt,
+    },
+    {
+      id: `quotation-${order.id}`,
+      type: "Quotation",
+      title: `Quotation / order summary ${order.id}`,
+      status: "Ready",
+      link: `track-order.html?order=${encodeURIComponent(order.id)}`,
+      createdAt: order.createdAt,
+    },
+    {
+      id: `warranty-${order.id}`,
+      type: "Warranty card",
+      title: `Warranty card request ${order.id}`,
+      status: /delivered|shipped/i.test(order.status || "") ? "Request from support" : "Pending dispatch",
+      link: "contact.html",
+      createdAt: order.createdAt,
+    },
+  ]);
+}
+
+function customerNotificationsForOrders(orders) {
+  return orders.slice(0, 8).map((order) =>
+    normalizeNotification({
+      id: `order-${order.id}`,
+      type: "Order status",
+      title: `${order.id} - ${order.status || "Request received"}`,
+      message: `${orderItemSummaryServer(order)} | ${order.payment?.status || "Payment pending"}`,
+      createdAt: order.statusUpdatedAt || order.createdAt,
+    })
+  );
+}
+
+function orderItemSummaryServer(order) {
+  const items = Array.isArray(order.items) ? order.items.map(normalizeOrderItem).filter((item) => item.name) : [];
+  if (!items.length) return "Order items pending";
+  const first = items[0];
+  return items.length === 1 ? `${first.name} x ${first.qty}` : `${first.name} + ${items.length - 1} more items`;
+}
+
+async function customerDashboardPayload(account) {
+  const normalized = normalizeAccount(account);
+  const orders = asArray(await readJson(ordersFile, []))
+    .map(safeOrder)
+    .filter((order) => customerOwnsOrder(normalized, order));
+  const paidTotal = orders
+    .filter((order) => /paid/i.test(order.payment?.status || ""))
+    .reduce((sum, order) => sum + Number(order.total || 0), 0);
+  const pendingPayments = orders
+    .filter((order) => !/paid/i.test(order.payment?.status || "") && !/cancelled/i.test(order.status || ""))
+    .reduce((sum, order) => sum + Number(order.total || 0), 0);
+  return {
+    account: {
+      ...safeAccount(normalized),
+      purchaseFrequency: orders.length ? `${orders.length} order${orders.length === 1 ? "" : "s"}` : normalized.purchaseFrequency,
+      pendingPayments,
+    },
+    orders,
+    documents: [...customerDocumentsForOrders(orders), ...asArray(normalized.documents || [])],
+    notifications: [...customerNotificationsForOrders(orders), ...normalized.notifications].slice(0, 12),
+    adminData: {
+      customerType: customerTypeLabel(normalized.type),
+      purchaseFrequency: orders.length ? `${orders.length} orders` : "No completed orders yet",
+      pendingPayments,
+      paidTotal,
+      serviceHistory: normalized.serviceHistory,
+    },
+  };
+}
+
 function parseCookies(req) {
   return Object.fromEntries(
     String(req.headers.cookie || "")
@@ -772,6 +1020,32 @@ function verifyAdminToken(token) {
   }
 }
 
+function createCustomerToken(account) {
+  const issuedAt = Date.now();
+  const payload = Buffer.from(
+    JSON.stringify({
+      role: "customer",
+      accountId: normalizeAccount(account).id,
+      iat: issuedAt,
+      exp: issuedAt + customerSessionMaxAgeSeconds * 1000,
+    })
+  ).toString("base64url");
+  return `${payload}.${sign(payload)}`;
+}
+
+function verifyCustomerToken(token) {
+  if (!token || !token.includes(".")) return null;
+  const [payload, signature] = token.split(".");
+  if (!timingSafeStringEqual(signature, sign(payload))) return null;
+  try {
+    const parsed = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
+    if (parsed.role !== "customer" || Number(parsed.exp) <= Date.now()) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
 function adminCookie(token) {
   return `${adminCookieName}=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${adminSessionMaxAgeSeconds}${isProduction ? "; Secure" : ""}`;
 }
@@ -780,8 +1054,33 @@ function clearAdminCookie() {
   return `${adminCookieName}=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0${isProduction ? "; Secure" : ""}`;
 }
 
+function customerCookie(token) {
+  return `${customerCookieName}=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${customerSessionMaxAgeSeconds}${isProduction ? "; Secure" : ""}`;
+}
+
+function clearCustomerCookie() {
+  return `${customerCookieName}=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0${isProduction ? "; Secure" : ""}`;
+}
+
 function isAdmin(req) {
   return verifyAdminToken(parseCookies(req)[adminCookieName]);
+}
+
+async function getCustomerFromRequest(req) {
+  const payload = verifyCustomerToken(parseCookies(req)[customerCookieName]);
+  if (!payload?.accountId) return null;
+  const accounts = asArray(await readJson(accountsFile, [])).map(normalizeAccount);
+  const account = accounts.find((item) => item.id === payload.accountId);
+  if (!account) return null;
+  if (account.logoutAllAt && Date.parse(account.logoutAllAt) > Number(payload.iat || 0)) return null;
+  return account;
+}
+
+async function requireCustomer(req, res) {
+  const account = await getCustomerFromRequest(req);
+  if (account) return account;
+  sendJson(res, 401, { error: "Customer login required" }, { "Set-Cookie": clearCustomerCookie() });
+  return null;
 }
 
 function requireAdmin(req, res) {
@@ -1497,6 +1796,276 @@ async function handleApi(req, res, reqUrl) {
     return;
   }
 
+  if (reqUrl.pathname === "/api/customer/otp/start" && req.method === "POST") {
+    if (!checkRateLimit(req, res, "customer-otp-start", 12, 15 * 60 * 1000)) return;
+    const body = await readRequestJson(req, 32 * 1024);
+    const login = normalizeLoginIdentifier(body.login || body.mobile || body.email || body.phone);
+    if (!login) {
+      sendJson(res, 400, { error: "Enter a valid 10 digit mobile number or email address" });
+      return;
+    }
+
+    const now = new Date().toISOString();
+    const otp = createOtpCode();
+    const accounts = asArray(await readJson(accountsFile, [])).map(normalizeAccount);
+    const index = findCustomerIndex(accounts, login);
+    const base = index >= 0 ? accounts[index] : normalizeAccount({ login });
+    const password = String(body.password || "").trim();
+    const updated = normalizeAccount({
+      ...base,
+      login: base.login || login,
+      mobile: login.includes("@") ? base.mobile : login,
+      email: login.includes("@") ? login : base.email,
+      name: body.name || base.name,
+      clinic: body.clinic || base.clinic,
+      type: body.type || body.customerType || base.type,
+      gstin: body.gstin || base.gstin,
+      status: base.verifiedAt ? "Verified" : "OTP pending",
+      passwordHash: password.length >= 6 ? hashCustomerPassword(password) : base.passwordHash,
+      passwordUpdatedAt: password.length >= 6 ? now : base.passwordUpdatedAt,
+      otpHash: hashCustomerOtp(login, otp),
+      otpIssuedAt: now,
+      otpExpiresAt: new Date(Date.now() + customerOtpMaxAgeSeconds * 1000).toISOString(),
+      updatedAt: now,
+      notifications: [
+        normalizeNotification({
+          type: "Security",
+          title: "OTP requested",
+          message: `Login OTP requested for ${maskLogin(login)}.`,
+          createdAt: now,
+        }),
+        ...base.notifications,
+      ].slice(0, 20),
+    });
+
+    if (index >= 0) accounts[index] = updated;
+    else accounts.unshift(updated);
+    await writeJson(accountsFile, accounts);
+    sendJson(res, index >= 0 ? 200 : 201, {
+      account: safeAccount(updated),
+      otpSentTo: maskLogin(login),
+      otpExpiresInSeconds: customerOtpMaxAgeSeconds,
+      demoOtp: otp,
+      message: "OTP generated. Connect SMS/email gateway later to send this automatically.",
+    });
+    return;
+  }
+
+  if (reqUrl.pathname === "/api/customer/otp/verify" && req.method === "POST") {
+    if (!checkRateLimit(req, res, "customer-otp-verify", 20, 15 * 60 * 1000)) return;
+    const body = await readRequestJson(req, 16 * 1024);
+    const login = normalizeLoginIdentifier(body.login || body.mobile || body.email || body.phone);
+    const otp = String(body.otp || "").replace(/\D/g, "");
+    if (!login || otp.length !== 6) {
+      sendJson(res, 400, { error: "Enter the 6 digit OTP" });
+      return;
+    }
+
+    const accounts = asArray(await readJson(accountsFile, [])).map(normalizeAccount);
+    const index = findCustomerIndex(accounts, login);
+    const account = index >= 0 ? accounts[index] : null;
+    if (!account || !account.otpHash || !account.otpExpiresAt || Date.parse(account.otpExpiresAt) < Date.now()) {
+      sendJson(res, 400, { error: "OTP expired. Request a fresh OTP." });
+      return;
+    }
+    if (!timingSafeStringEqual(account.otpHash, hashCustomerOtp(login, otp))) {
+      sendJson(res, 401, { error: "Wrong OTP" });
+      return;
+    }
+
+    const now = new Date().toISOString();
+    const updated = normalizeAccount({
+      ...account,
+      status: "Verified",
+      verifiedAt: now,
+      otpHash: "",
+      otpExpiresAt: "",
+      otpIssuedAt: "",
+      updatedAt: now,
+      notifications: [
+        normalizeNotification({
+          type: "Security",
+          title: "Login verified",
+          message: "Customer account login verified by OTP.",
+          createdAt: now,
+        }),
+        ...account.notifications,
+      ].slice(0, 20),
+    });
+    accounts[index] = updated;
+    await writeJson(accountsFile, accounts);
+    sendJson(res, 200, await customerDashboardPayload(updated), { "Set-Cookie": customerCookie(createCustomerToken(updated)) });
+    return;
+  }
+
+  if (reqUrl.pathname === "/api/customer/me" && req.method === "GET") {
+    const account = await requireCustomer(req, res);
+    if (!account) return;
+    sendJson(res, 200, await customerDashboardPayload(account));
+    return;
+  }
+
+  if (reqUrl.pathname === "/api/customer/profile" && req.method === "POST") {
+    const currentAccount = await requireCustomer(req, res);
+    if (!currentAccount) return;
+    const body = await readRequestJson(req, 32 * 1024);
+    const accounts = asArray(await readJson(accountsFile, [])).map(normalizeAccount);
+    const index = accounts.findIndex((account) => account.id === currentAccount.id);
+    if (index < 0) {
+      sendJson(res, 404, { error: "Customer account not found" }, { "Set-Cookie": clearCustomerCookie() });
+      return;
+    }
+    const next = normalizeAccount({
+      ...accounts[index],
+      name: body.name ?? accounts[index].name,
+      clinic: body.clinic ?? accounts[index].clinic,
+      email: body.email ?? accounts[index].email,
+      mobile: body.mobile ?? body.phone ?? accounts[index].mobile,
+      gstin: body.gstin ?? accounts[index].gstin,
+      type: body.type ?? body.customerType ?? accounts[index].type,
+      updatedAt: new Date().toISOString(),
+    });
+    accounts[index] = next;
+    await writeJson(accountsFile, accounts);
+    sendJson(res, 200, await customerDashboardPayload(next));
+    return;
+  }
+
+  if (reqUrl.pathname === "/api/customer/password" && req.method === "POST") {
+    const currentAccount = await requireCustomer(req, res);
+    if (!currentAccount) return;
+    const body = await readRequestJson(req, 16 * 1024);
+    const password = String(body.password || "");
+    if (password.length < 6) {
+      sendJson(res, 400, { error: "Password must be at least 6 characters" });
+      return;
+    }
+    const accounts = asArray(await readJson(accountsFile, [])).map(normalizeAccount);
+    const index = accounts.findIndex((account) => account.id === currentAccount.id);
+    if (index < 0) {
+      sendJson(res, 404, { error: "Customer account not found" }, { "Set-Cookie": clearCustomerCookie() });
+      return;
+    }
+    accounts[index] = normalizeAccount({
+      ...accounts[index],
+      passwordHash: hashCustomerPassword(password),
+      passwordUpdatedAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+    await writeJson(accountsFile, accounts);
+    sendJson(res, 200, { account: safeAccount(accounts[index]), message: "Password option updated." });
+    return;
+  }
+
+  if (reqUrl.pathname === "/api/customer/addresses" && req.method === "POST") {
+    const currentAccount = await requireCustomer(req, res);
+    if (!currentAccount) return;
+    const body = await readRequestJson(req, 32 * 1024);
+    const address = normalizeAddress(body.address || body);
+    if (!address.line1) {
+      sendJson(res, 400, { error: "Address is required" });
+      return;
+    }
+    const accounts = asArray(await readJson(accountsFile, [])).map(normalizeAccount);
+    const index = accounts.findIndex((account) => account.id === currentAccount.id);
+    if (index < 0) {
+      sendJson(res, 404, { error: "Customer account not found" }, { "Set-Cookie": clearCustomerCookie() });
+      return;
+    }
+    const addresses = accounts[index].addresses.filter((item) => item.id !== address.id);
+    if (address.isDefault || !addresses.length) {
+      addresses.forEach((item) => {
+        item.isDefault = false;
+      });
+      address.isDefault = true;
+    }
+    accounts[index] = normalizeAccount({
+      ...accounts[index],
+      addresses: [address, ...addresses].slice(0, 12),
+      updatedAt: new Date().toISOString(),
+    });
+    await writeJson(accountsFile, accounts);
+    sendJson(res, 200, await customerDashboardPayload(accounts[index]));
+    return;
+  }
+
+  const customerAddressDeleteMatch = reqUrl.pathname.match(/^\/api\/customer\/addresses\/([^/]+)$/);
+  if (customerAddressDeleteMatch && req.method === "DELETE") {
+    const currentAccount = await requireCustomer(req, res);
+    if (!currentAccount) return;
+    const addressId = decodeURIComponent(customerAddressDeleteMatch[1]);
+    const accounts = asArray(await readJson(accountsFile, [])).map(normalizeAccount);
+    const index = accounts.findIndex((account) => account.id === currentAccount.id);
+    if (index < 0) {
+      sendJson(res, 404, { error: "Customer account not found" }, { "Set-Cookie": clearCustomerCookie() });
+      return;
+    }
+    accounts[index] = normalizeAccount({
+      ...accounts[index],
+      addresses: accounts[index].addresses.filter((address) => address.id !== addressId),
+      updatedAt: new Date().toISOString(),
+    });
+    await writeJson(accountsFile, accounts);
+    sendJson(res, 200, await customerDashboardPayload(accounts[index]));
+    return;
+  }
+
+  if (reqUrl.pathname === "/api/customer/tickets" && req.method === "POST") {
+    const currentAccount = await requireCustomer(req, res);
+    if (!currentAccount) return;
+    const body = await readRequestJson(req, 32 * 1024);
+    const ticket = normalizeTicket(body.ticket || body);
+    if (!ticket.subject && !ticket.message) {
+      sendJson(res, 400, { error: "Ticket subject or message is required" });
+      return;
+    }
+    const accounts = asArray(await readJson(accountsFile, [])).map(normalizeAccount);
+    const index = accounts.findIndex((account) => account.id === currentAccount.id);
+    if (index < 0) {
+      sendJson(res, 404, { error: "Customer account not found" }, { "Set-Cookie": clearCustomerCookie() });
+      return;
+    }
+    accounts[index] = normalizeAccount({
+      ...accounts[index],
+      tickets: [ticket, ...accounts[index].tickets].slice(0, 30),
+      notifications: [
+        normalizeNotification({
+          type: "Support",
+          title: `${ticket.type} ticket raised`,
+          message: ticket.subject || ticket.message,
+          createdAt: ticket.createdAt,
+        }),
+        ...accounts[index].notifications,
+      ].slice(0, 20),
+      updatedAt: new Date().toISOString(),
+    });
+    await writeJson(accountsFile, accounts);
+    sendJson(res, 201, await customerDashboardPayload(accounts[index]));
+    return;
+  }
+
+  if (reqUrl.pathname === "/api/customer/logout" && req.method === "POST") {
+    sendJson(res, 200, { authenticated: false }, { "Set-Cookie": clearCustomerCookie() });
+    return;
+  }
+
+  if (reqUrl.pathname === "/api/customer/logout-all" && req.method === "POST") {
+    const currentAccount = await requireCustomer(req, res);
+    if (!currentAccount) return;
+    const accounts = asArray(await readJson(accountsFile, [])).map(normalizeAccount);
+    const index = accounts.findIndex((account) => account.id === currentAccount.id);
+    if (index >= 0) {
+      accounts[index] = normalizeAccount({
+        ...accounts[index],
+        logoutAllAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+      await writeJson(accountsFile, accounts);
+    }
+    sendJson(res, 200, { authenticated: false }, { "Set-Cookie": clearCustomerCookie() });
+    return;
+  }
+
   if (reqUrl.pathname === "/api/accounts" && req.method === "POST") {
     if (!checkRateLimit(req, res, "account-request", 30, 10 * 60 * 1000)) return;
     const body = await readRequestJson(req);
@@ -1506,20 +2075,31 @@ async function handleApi(req, res, reqUrl) {
       return;
     }
     const accounts = (await readJson(accountsFile, [])).map(normalizeAccount);
-    const index = accounts.findIndex((item) => item.mobile === account.mobile);
+    const index = findCustomerIndex(accounts, account.login || account.mobile);
     if (index >= 0) {
-      accounts[index] = { ...accounts[index], ...account, id: accounts[index].id, createdAt: accounts[index].createdAt };
+      accounts[index] = normalizeAccount({
+        ...accounts[index],
+        ...account,
+        id: accounts[index].id,
+        createdAt: accounts[index].createdAt,
+        passwordHash: accounts[index].passwordHash,
+        passwordUpdatedAt: accounts[index].passwordUpdatedAt,
+        otpHash: accounts[index].otpHash,
+        otpExpiresAt: accounts[index].otpExpiresAt,
+        otpIssuedAt: accounts[index].otpIssuedAt,
+        verifiedAt: accounts[index].verifiedAt,
+      });
     } else {
       accounts.unshift(account);
     }
     await writeJson(accountsFile, accounts);
-    sendJson(res, index >= 0 ? 200 : 201, account);
+    sendJson(res, index >= 0 ? 200 : 201, safeAccount(index >= 0 ? accounts[index] : account));
     return;
   }
 
   if (reqUrl.pathname === "/api/accounts" && req.method === "GET") {
     if (!requireAdmin(req, res)) return;
-    sendJson(res, 200, await readJson(accountsFile, []));
+    sendJson(res, 200, asArray(await readJson(accountsFile, [])).map(safeAccount));
     return;
   }
 

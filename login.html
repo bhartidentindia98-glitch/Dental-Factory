@@ -3,12 +3,12 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Login - Dental Factory</title>
-    <meta name="description" content="Login or create a Dental Factory dental marketplace account." />
+    <title>Customer Login - Dental Factory</title>
+    <meta name="description" content="Login or create a Dental Factory customer account to track orders, invoices, wishlist, addresses, and support tickets." />
     <link rel="canonical" href="https://bhartidentindia.com/login.html" />
     <meta name="robots" content="noindex, follow" />
     <link rel="preconnect" href="https://unpkg.com" />
-    <link rel="stylesheet" href="styles.css?v=20260518-seourls" />
+    <link rel="stylesheet" href="styles.css?v=20260518-customer" />
     <link rel="icon" href="assets/dental-factory-logo-mark.png?v=20260517-logo" />
   </head>
   <body>
@@ -25,30 +25,156 @@
     </header>
 
     <main>
-      <section class="auth-page">
+      <section class="auth-page customer-login-shell" id="customerLoginShell">
         <div class="auth-copy">
           <span class="eyebrow">Account</span>
-          <h1>Login or create your clinic account</h1>
-          <p>Track order requests, save clinic addresses, and access membership callbacks for bulk procurement.</p>
+          <h1>Login or create your customer account</h1>
+          <p>Track orders, invoices, addresses, wishlist, service requests, and payment status from one place.</p>
           <div class="assurance-strip auth-assurance">
             <div><i data-lucide="badge-check"></i><strong>Order tracking</strong><span>Keep one place for callback requests.</span></div>
-            <div><i data-lucide="wallet-cards"></i><strong>Bulk pricing</strong><span>Unlock enquiry support for repeat orders.</span></div>
+            <div><i data-lucide="file-check-2"></i><strong>Documents</strong><span>Invoice, quotation, warranty, and manuals.</span></div>
           </div>
         </div>
 
-        <form class="account-panel auth-panel" id="accountPageForm">
-          <h2>Continue with mobile</h2>
-          <p class="account-note">This prototype creates a demo account confirmation.</p>
-          <label>Mobile number<input name="mobile" required inputmode="tel" placeholder="Account mobile number" /></label>
-          <label>Clinic or doctor name<input name="clinic" required placeholder="Clinic name" /></label>
-          <div class="account-options" aria-label="Account type">
-            <label><input name="type" type="radio" checked value="dentist" /> Dentist</label>
-            <label><input name="type" type="radio" value="dealer" /> Dealer</label>
-            <label><input name="type" type="radio" value="student" /> Student</label>
+        <div class="customer-login-stack">
+          <form class="account-panel auth-panel" id="customerLoginForm">
+            <h2>Login / Signup</h2>
+            <p class="account-note">Use mobile number or email. OTP verification keeps the account private.</p>
+            <label>Mobile number or email<input name="login" required autocomplete="username" placeholder="10 digit mobile or email" /></label>
+            <label>Customer name<input name="name" placeholder="Full name" /></label>
+            <label>Clinic or business name<input name="clinic" placeholder="Clinic / company name" /></label>
+            <label>GST details optional<input name="gstin" maxlength="15" placeholder="GSTIN for B2B customer" /></label>
+            <label>Password optional<input name="password" type="password" autocomplete="new-password" placeholder="Use later if needed" /></label>
+            <div class="account-options" aria-label="Customer type">
+              <label><input name="type" type="radio" checked value="clinic" /> Clinic</label>
+              <label><input name="type" type="radio" value="dealer" /> Dealer</label>
+              <label><input name="type" type="radio" value="retail" /> Retail</label>
+            </div>
+            <button class="checkout-button" type="submit">Send OTP</button>
+            <p class="checkout-message" id="customerLoginMessage" role="status"></p>
+          </form>
+
+          <form class="account-panel auth-panel otp-panel" id="customerOtpForm" hidden>
+            <h2>OTP verification</h2>
+            <p class="account-note" id="customerOtpHelp">Enter the 6 digit OTP.</p>
+            <input name="login" type="hidden" />
+            <label>OTP code<input name="otp" required inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="6 digit OTP" /></label>
+            <button class="checkout-button" type="submit">Verify and open dashboard</button>
+            <p class="checkout-message" id="customerOtpMessage" role="status"></p>
+          </form>
+        </div>
+      </section>
+
+      <section class="customer-dashboard" id="customerDashboard" hidden>
+        <div class="customer-dashboard-head">
+          <div>
+            <span class="eyebrow">Customer dashboard</span>
+            <h1 id="customerDashboardName">Your account</h1>
+            <p id="customerDashboardMeta">Profile, orders, documents, support, and saved items.</p>
           </div>
-          <button class="checkout-button" type="submit">Continue</button>
-          <p class="checkout-message" id="accountPageMessage" role="status"></p>
-        </form>
+          <div class="customer-head-actions">
+            <a class="secondary-link" href="products.html">Shop products</a>
+            <button class="outline-link danger-link" type="button" id="customerLogoutButton">Logout</button>
+          </div>
+        </div>
+
+        <div class="customer-stat-grid">
+          <div><span>Orders</span><strong id="customerOrderCount">0</strong></div>
+          <div><span>Pending payment</span><strong id="customerPendingPayments">Rs. 0</strong></div>
+          <div><span>Customer type</span><strong id="customerTypeStat">Clinic</strong></div>
+          <div><span>Saved addresses</span><strong id="customerAddressCount">0</strong></div>
+        </div>
+
+        <div class="customer-grid">
+          <section class="customer-card">
+            <h2>Customer profile</h2>
+            <form class="customer-compact-form" id="customerProfileForm">
+              <label>Name<input name="name" placeholder="Customer name" /></label>
+              <label>Phone<input name="mobile" inputmode="tel" placeholder="10 digit mobile" /></label>
+              <label>Email<input name="email" type="email" placeholder="email@example.com" /></label>
+              <label>Clinic / business<input name="clinic" placeholder="Clinic or company" /></label>
+              <label>GSTIN<input name="gstin" maxlength="15" placeholder="B2B GST details" /></label>
+              <label>Customer type<select name="type"><option value="clinic">Clinic</option><option value="dealer">Dealer</option><option value="retail">Retail</option></select></label>
+              <button class="checkout-button" type="submit">Save profile</button>
+              <p class="checkout-message" id="customerProfileMessage" role="status"></p>
+            </form>
+          </section>
+
+          <section class="customer-card">
+            <h2>Cart & saved items</h2>
+            <div class="customer-list" id="customerSavedCart"></div>
+            <div class="customer-actions">
+              <button class="outline-link" type="button" id="saveCartToWishlist">Save cart for later</button>
+              <a class="secondary-link" href="cart.html">Open cart</a>
+            </div>
+            <h3>Wishlist / saved items</h3>
+            <div class="customer-list" id="customerWishlist"></div>
+          </section>
+
+          <section class="customer-card wide-card">
+            <h2>Order history</h2>
+            <div class="customer-list" id="customerOrderHistory"></div>
+          </section>
+
+          <section class="customer-card">
+            <h2>Multiple delivery addresses</h2>
+            <form class="customer-compact-form" id="customerAddressForm">
+              <label>Address label<input name="label" placeholder="Clinic, home, branch" /></label>
+              <label>Delivery address<textarea name="line1" required placeholder="Street, area, landmark"></textarea></label>
+              <div class="two-column-fields">
+                <label>City<input name="city" placeholder="City" /></label>
+                <label>State<input name="state" placeholder="State" /></label>
+              </div>
+              <div class="two-column-fields">
+                <label>Pincode<input name="pincode" inputmode="numeric" maxlength="6" placeholder="110081" /></label>
+                <label>Phone<input name="phone" inputmode="tel" placeholder="Mobile" /></label>
+              </div>
+              <label class="check-row"><input name="isDefault" type="checkbox" /> Default delivery address</label>
+              <button class="checkout-button" type="submit">Save address</button>
+              <p class="checkout-message" id="customerAddressMessage" role="status"></p>
+            </form>
+            <div class="customer-list" id="customerAddresses"></div>
+          </section>
+
+          <section class="customer-card">
+            <h2>Documents</h2>
+            <div class="customer-list" id="customerDocuments"></div>
+          </section>
+
+          <section class="customer-card">
+            <h2>Support / service</h2>
+            <form class="customer-compact-form" id="customerTicketForm">
+              <label>Request type<select name="type"><option>Complaint</option><option>Warranty/service request</option><option>Quotation request</option><option>Payment help</option></select></label>
+              <label>Order ID optional<input name="orderId" placeholder="DF-..." /></label>
+              <label>Subject<input name="subject" placeholder="What needs help?" /></label>
+              <label>Details<textarea name="message" placeholder="Explain the issue or service request"></textarea></label>
+              <button class="checkout-button" type="submit">Raise ticket</button>
+              <p class="checkout-message" id="customerTicketMessage" role="status"></p>
+            </form>
+            <a class="secondary-link" href="https://wa.me/917678541041">WhatsApp support</a>
+            <div class="customer-list" id="customerTickets"></div>
+          </section>
+
+          <section class="customer-card">
+            <h2>Notifications</h2>
+            <div class="customer-list" id="customerNotifications"></div>
+          </section>
+
+          <section class="customer-card">
+            <h2>Security</h2>
+            <form class="customer-compact-form" id="customerPasswordForm">
+              <label>Reset password<input name="password" type="password" autocomplete="new-password" placeholder="Minimum 6 characters" /></label>
+              <button class="checkout-button" type="submit">Update password</button>
+              <p class="checkout-message" id="customerPasswordMessage" role="status"></p>
+            </form>
+            <button class="outline-link danger-link" type="button" id="customerLogoutAllButton">Logout from all devices</button>
+          </section>
+
+          <section class="customer-card">
+            <h2>Admin-side useful data</h2>
+            <dl class="customer-admin-data" id="customerAdminData"></dl>
+          </section>
+        </div>
       </section>
     </main>
 
@@ -87,6 +213,6 @@
 </footer>
 
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
-    <script src="script.js?v=20260518-seourls"></script>
+    <script src="script.js?v=20260518-customer"></script>
   </body>
 </html>
