@@ -8,13 +8,13 @@
     <link rel="canonical" href="https://bhartidentindia.com/login.html" />
     <meta name="robots" content="noindex, follow" />
     <link rel="preconnect" href="https://unpkg.com" />
-    <link rel="stylesheet" href="styles.css?v=20260518-customer" />
-    <link rel="icon" href="assets/dental-factory-logo-mark.png?v=20260517-logo" />
+    <link rel="stylesheet" href="/styles.css?v=20260519-adminonly" />
+    <link rel="icon" href="/assets/dental-factory-logo-mark.png?v=20260517-logo" />
   </head>
-  <body>
+  <body class="customer-auth-page">
     <header class="site-header">
       <div class="header-main">
-        <a class="brand" href="index.html" aria-label="Dental Factory home"><img class="brand-logo" src="assets/dental-factory-logo-header.png?v=20260517-logo" alt="Dental Factory" /></a>
+        <a class="brand" href="index.html" aria-label="Dental Factory home"><img class="brand-logo" src="/assets/dental-factory-logo-header.png?v=20260517-logo" alt="Dental Factory" /></a>
         <form class="delivery-box" id="deliveryForm"><label for="pincode">Delivering to</label><div class="pin-control"><i data-lucide="map-pin"></i><input id="pincode" inputmode="numeric" maxlength="6" placeholder="Enter pincode" /><button type="submit" aria-label="Check delivery"><i data-lucide="check"></i></button></div></form>
         <label class="search-shell" for="siteSearch"><i data-lucide="search"></i><input id="siteSearch" type="search" placeholder="Search over 20,000 dental products" /></label>
         <div class="header-actions"><a class="icon-action" id="loginButton" href="login.html" aria-label="Login"><i data-lucide="user-round"></i><span>Login</span></a><a class="icon-action cart-button" id="cartButton" href="cart.html" aria-label="Cart"><i data-lucide="shopping-cart"></i><span>Cart</span><b id="cartCount">0</b></a></div>
@@ -25,124 +25,114 @@
     </header>
 
     <main>
-      <section class="auth-page customer-login-shell" id="customerLoginShell">
-        <div class="auth-copy">
-          <span class="eyebrow">Account</span>
-          <h1>Login or create your customer account</h1>
-          <p>Track orders, invoices, addresses, wishlist, service requests, and payment status from one place.</p>
-          <div class="assurance-strip auth-assurance">
-            <div><i data-lucide="badge-check"></i><strong>Order tracking</strong><span>Keep one place for callback requests.</span></div>
-            <div><i data-lucide="file-check-2"></i><strong>Documents</strong><span>Invoice, quotation, warranty, and manuals.</span></div>
+      <section class="customer-auth-hero" id="customerLoginShell">
+        <div class="customer-auth-visual">
+          <a href="index.html" class="customer-auth-logo" aria-label="Dental Factory home"><img src="/assets/dental-factory-logo-header.png?v=20260517-logo" alt="Dental Factory" /></a>
+          <div class="customer-auth-copy">
+            <h1>Join Dental Factory customer account</h1>
+            <p>Track orders, invoices, saved addresses, wishlist, and service requests from one secure place.</p>
+            <div class="customer-auth-points"><span>Easy returns</span><span>20,000+ products</span><span>Best price support</span></div>
           </div>
         </div>
 
-        <div class="customer-login-stack">
-          <form class="account-panel auth-panel" id="customerLoginForm">
-            <h2>Login / Signup</h2>
-            <p class="account-note">Use mobile number or email. OTP verification keeps the account private.</p>
-            <label>Mobile number or email<input name="login" required autocomplete="username" placeholder="10 digit mobile or email" /></label>
-            <label>Customer name<input name="name" placeholder="Full name" /></label>
-            <label>Clinic or business name<input name="clinic" placeholder="Clinic / company name" /></label>
-            <label>GST details optional<input name="gstin" maxlength="15" placeholder="GSTIN for B2B customer" /></label>
-            <label>Password optional<input name="password" type="password" autocomplete="new-password" placeholder="Use later if needed" /></label>
-            <div class="account-options" aria-label="Customer type">
-              <label><input name="type" type="radio" checked value="clinic" /> Clinic</label>
-              <label><input name="type" type="radio" value="dealer" /> Dealer</label>
-              <label><input name="type" type="radio" value="retail" /> Retail</label>
-            </div>
+        <div class="customer-auth-panel">
+          <form class="customer-auth-card" id="customerLoginForm">
+            <a class="icon-only customer-auth-close" href="index.html" aria-label="Close login"><i data-lucide="x"></i></a>
+            <img class="customer-auth-card-logo" src="/assets/dental-factory-logo-header.png?v=20260517-logo" alt="Dental Factory" />
+            <h2>Log In or Sign up</h2>
+            <p>Sign up now and manage your dental purchases faster.</p>
+            <input name="type" type="hidden" value="clinic" />
+            <label class="phone-login-field"><span>+91</span><input name="login" required autocomplete="username" inputmode="email" placeholder="Mobile Number or Email" /></label>
+            <label class="password-login-field" hidden>Password optional<input name="password" type="password" autocomplete="new-password" placeholder="Use password later if needed" /></label>
+            <div class="auth-card-links"><button type="button" data-toggle-password>Use Password</button><button type="button" data-login-email>Login with Email</button></div>
             <button class="checkout-button" type="submit">Send OTP</button>
+            <p class="auth-referral">Have a Referral Code?</p>
+            <div class="auth-divider"><span></span>Or<span></span></div>
+            <button class="google-button" type="button" disabled><strong>G</strong> Continue with Google</button>
+            <p class="auth-help">Need help? <a href="https://wa.me/917678541041">Connect with us</a></p>
+            <p class="auth-terms">By logging or signing up, you agree to our <a href="terms.html">Terms</a> & <a href="privacy-policy.html">Policy</a></p>
             <p class="checkout-message" id="customerLoginMessage" role="status"></p>
           </form>
 
-          <form class="account-panel auth-panel otp-panel" id="customerOtpForm" hidden>
+          <form class="customer-auth-card otp-panel" id="customerOtpForm" hidden>
+            <a class="icon-only customer-auth-close" href="index.html" aria-label="Close login"><i data-lucide="x"></i></a>
+            <img class="customer-auth-card-logo" src="/assets/dental-factory-logo-header.png?v=20260517-logo" alt="Dental Factory" />
             <h2>OTP verification</h2>
-            <p class="account-note" id="customerOtpHelp">Enter the 6 digit OTP.</p>
+            <p id="customerOtpHelp">Enter the 6 digit OTP.</p>
             <input name="login" type="hidden" />
-            <label>OTP code<input name="otp" required inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="6 digit OTP" /></label>
-            <button class="checkout-button" type="submit">Verify and open dashboard</button>
+            <label class="phone-login-field"><span>OTP</span><input name="otp" required inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="6 digit OTP" /></label>
+            <button class="checkout-button" type="submit">Verify and continue</button>
+            <button class="outline-link" type="button" data-back-login>Change mobile/email</button>
             <p class="checkout-message" id="customerOtpMessage" role="status"></p>
           </form>
         </div>
       </section>
 
-      <section class="customer-dashboard" id="customerDashboard" hidden>
-        <div class="customer-dashboard-head">
-          <div>
-            <span class="eyebrow">Customer dashboard</span>
-            <h1 id="customerDashboardName">Your account</h1>
-            <p id="customerDashboardMeta">Profile, orders, documents, support, and saved items.</p>
-          </div>
-          <div class="customer-head-actions">
-            <a class="secondary-link" href="products.html">Shop products</a>
-            <button class="outline-link danger-link" type="button" id="customerLogoutButton">Logout</button>
-          </div>
-        </div>
+      <section class="customer-dashboard customer-account-page" id="customerDashboard" hidden>
+        <aside class="customer-account-sidebar">
+          <button class="is-active" type="button" data-account-tab="profile"><i data-lucide="user-round"></i><span>Profile</span></button>
+          <button type="button" data-account-tab="addresses"><i data-lucide="map-pin"></i><span>Manage Address</span></button>
+          <button type="button" data-account-tab="wishlist"><i data-lucide="heart"></i><span>Wishlist</span></button>
+          <button type="button" data-account-tab="orders"><i data-lucide="package"></i><span>My orders</span></button>
+          <button type="button" data-account-tab="returns"><i data-lucide="undo-2"></i><span>Returns</span></button>
+          <button type="button" data-account-tab="membership"><i data-lucide="gem"></i><span>My Membership</span></button>
+          <button type="button" data-account-tab="help"><i data-lucide="headphones"></i><span>Help</span></button>
+          <button type="button" id="customerLogoutButton"><i data-lucide="log-out"></i><span>Logout</span></button>
+        </aside>
 
-        <div class="customer-stat-grid">
-          <div><span>Orders</span><strong id="customerOrderCount">0</strong></div>
-          <div><span>Pending payment</span><strong id="customerPendingPayments">Rs. 0</strong></div>
-          <div><span>Customer type</span><strong id="customerTypeStat">Clinic</strong></div>
-          <div><span>Saved addresses</span><strong id="customerAddressCount">0</strong></div>
-        </div>
-
-        <div class="customer-grid">
-          <section class="customer-card">
-            <h2>Customer profile</h2>
-            <form class="customer-compact-form" id="customerProfileForm">
-              <label>Name<input name="name" placeholder="Customer name" /></label>
-              <label>Phone<input name="mobile" inputmode="tel" placeholder="10 digit mobile" /></label>
-              <label>Email<input name="email" type="email" placeholder="email@example.com" /></label>
-              <label>Clinic / business<input name="clinic" placeholder="Clinic or company" /></label>
-              <label>GSTIN<input name="gstin" maxlength="15" placeholder="B2B GST details" /></label>
-              <label>Customer type<select name="type"><option value="clinic">Clinic</option><option value="dealer">Dealer</option><option value="retail">Retail</option></select></label>
+        <div class="customer-account-content">
+          <section class="account-pane is-active" data-account-pane="profile">
+            <div class="account-pane-head"><h1>Profile <span>33% Complete</span></h1><button class="icon-only" type="button" aria-label="Edit profile"><i data-lucide="pencil"></i></button></div>
+            <form class="account-profile-form" id="customerProfileForm">
+              <label>Full Name<input name="name" placeholder="Full name" /></label>
+              <label>Type<select name="type"><option value="clinic">Clinic</option><option value="dealer">Dealer</option><option value="retail">Retail</option></select></label>
+              <label>Business Name<input name="clinic" placeholder="Business name" /></label>
+              <label>Mobile Number<input name="mobile" inputmode="tel" placeholder="Mobile Number" /></label>
+              <label>WhatsApp Number<input name="whatsapp" inputmode="tel" placeholder="WhatsApp Number" /></label>
+              <label class="full-field">Email Address<input name="email" type="email" placeholder="email@example.com" /></label>
+              <label class="full-field">GSTIN<input name="gstin" maxlength="15" placeholder="GST details for B2B customer" /></label>
               <button class="checkout-button" type="submit">Save profile</button>
               <p class="checkout-message" id="customerProfileMessage" role="status"></p>
             </form>
           </section>
 
-          <section class="customer-card">
-            <h2>Cart & saved items</h2>
-            <div class="customer-list" id="customerSavedCart"></div>
-            <div class="customer-actions">
-              <button class="outline-link" type="button" id="saveCartToWishlist">Save cart for later</button>
-              <a class="secondary-link" href="cart.html">Open cart</a>
-            </div>
-            <h3>Wishlist / saved items</h3>
-            <div class="customer-list" id="customerWishlist"></div>
-          </section>
-
-          <section class="customer-card wide-card">
-            <h2>Order history</h2>
-            <div class="customer-list" id="customerOrderHistory"></div>
-          </section>
-
-          <section class="customer-card">
-            <h2>Multiple delivery addresses</h2>
-            <form class="customer-compact-form" id="customerAddressForm">
+          <section class="account-pane" data-account-pane="addresses">
+            <div class="account-pane-head"><h1>Manage Address</h1><button class="outline-link" type="button" data-focus-address><i data-lucide="plus"></i> Add new address</button></div>
+            <form class="customer-compact-form address-editor" id="customerAddressForm">
               <label>Address label<input name="label" placeholder="Clinic, home, branch" /></label>
               <label>Delivery address<textarea name="line1" required placeholder="Street, area, landmark"></textarea></label>
-              <div class="two-column-fields">
-                <label>City<input name="city" placeholder="City" /></label>
-                <label>State<input name="state" placeholder="State" /></label>
-              </div>
-              <div class="two-column-fields">
-                <label>Pincode<input name="pincode" inputmode="numeric" maxlength="6" placeholder="110081" /></label>
-                <label>Phone<input name="phone" inputmode="tel" placeholder="Mobile" /></label>
-              </div>
+              <div class="two-column-fields"><label>City<input name="city" placeholder="City" /></label><label>State<input name="state" placeholder="State" /></label></div>
+              <div class="two-column-fields"><label>Pincode<input name="pincode" inputmode="numeric" maxlength="6" placeholder="110081" /></label><label>Phone<input name="phone" inputmode="tel" placeholder="Mobile" /></label></div>
               <label class="check-row"><input name="isDefault" type="checkbox" /> Default delivery address</label>
               <button class="checkout-button" type="submit">Save address</button>
               <p class="checkout-message" id="customerAddressMessage" role="status"></p>
             </form>
-            <div class="customer-list" id="customerAddresses"></div>
+            <div class="customer-list address-list" id="customerAddresses"></div>
           </section>
 
-          <section class="customer-card">
+          <section class="account-pane" data-account-pane="wishlist">
+            <div class="account-pane-head"><h1>Wishlist</h1><button class="outline-link" type="button" id="saveCartToWishlist">Save cart for later</button></div>
+            <h2>Current cart</h2>
+            <div class="customer-list" id="customerSavedCart"></div>
+            <h2>Saved items</h2>
+            <div class="customer-list" id="customerWishlist"></div>
+          </section>
+
+          <section class="account-pane" data-account-pane="orders">
+            <div class="account-pane-head"><h1>My Orders</h1><a class="secondary-link" href="products.html">Shop products</a></div>
+            <div class="customer-stat-grid">
+              <div><span>Orders</span><strong id="customerOrderCount">0</strong></div>
+              <div><span>Pending payment</span><strong id="customerPendingPayments">Rs. 0</strong></div>
+              <div><span>Customer type</span><strong id="customerTypeStat">Clinic</strong></div>
+              <div><span>Saved addresses</span><strong id="customerAddressCount">0</strong></div>
+            </div>
+            <div class="customer-list" id="customerOrderHistory"></div>
             <h2>Documents</h2>
             <div class="customer-list" id="customerDocuments"></div>
           </section>
 
-          <section class="customer-card">
-            <h2>Support / service</h2>
+          <section class="account-pane" data-account-pane="returns">
+            <div class="account-pane-head"><h1>Returns & service</h1><a class="secondary-link" href="https://wa.me/917678541041">WhatsApp support</a></div>
             <form class="customer-compact-form" id="customerTicketForm">
               <label>Request type<select name="type"><option>Complaint</option><option>Warranty/service request</option><option>Quotation request</option><option>Payment help</option></select></label>
               <label>Order ID optional<input name="orderId" placeholder="DF-..." /></label>
@@ -151,17 +141,12 @@
               <button class="checkout-button" type="submit">Raise ticket</button>
               <p class="checkout-message" id="customerTicketMessage" role="status"></p>
             </form>
-            <a class="secondary-link" href="https://wa.me/917678541041">WhatsApp support</a>
             <div class="customer-list" id="customerTickets"></div>
           </section>
 
-          <section class="customer-card">
-            <h2>Notifications</h2>
-            <div class="customer-list" id="customerNotifications"></div>
-          </section>
-
-          <section class="customer-card">
-            <h2>Security</h2>
+          <section class="account-pane" data-account-pane="membership">
+            <div class="account-pane-head"><h1>Membership & security</h1></div>
+            <dl class="customer-admin-data" id="customerAdminData"></dl>
             <form class="customer-compact-form" id="customerPasswordForm">
               <label>Reset password<input name="password" type="password" autocomplete="new-password" placeholder="Minimum 6 characters" /></label>
               <button class="checkout-button" type="submit">Update password</button>
@@ -170,9 +155,10 @@
             <button class="outline-link danger-link" type="button" id="customerLogoutAllButton">Logout from all devices</button>
           </section>
 
-          <section class="customer-card">
-            <h2>Admin-side useful data</h2>
-            <dl class="customer-admin-data" id="customerAdminData"></dl>
+          <section class="account-pane" data-account-pane="help">
+            <div class="account-pane-head"><h1>Help</h1></div>
+            <div class="customer-list" id="customerNotifications"></div>
+            <a class="secondary-link" href="https://wa.me/917678541041">Connect with us on WhatsApp</a>
           </section>
         </div>
       </section>
@@ -200,7 +186,6 @@
   </div>
   <div>
     <h2>Tools</h2>
-    <a href="login.html">Login</a>
     <a href="privacy-policy.html">Privacy Policy</a>
     <a href="terms.html">Terms</a>
     <a href="contact.html">Contact</a>
@@ -213,6 +198,6 @@
 </footer>
 
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
-    <script src="script.js?v=20260518-customer"></script>
+    <script src="/script.js?v=20260519-adminonly"></script>
   </body>
 </html>

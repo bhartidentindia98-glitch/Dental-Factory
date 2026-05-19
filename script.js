@@ -227,6 +227,23 @@ const defaultBrands = [
   { name: "Orthometric", description: "Orthodontic brackets, wires, and alignment products.", featured: true },
   { name: "DentalTech", description: "Dental practice essentials and value-focused consumables.", featured: true },
 ];
+const retiredDefaultBrandIds = new Set(defaultBrands.flatMap((brand) => [brand.id, brand.name].map(slugifyProduct)).filter(Boolean));
+const retiredDefaultProductSeeds = [
+  { name: "Airotor Elite Handpiece", image: "assets/air-rotor.png" },
+  { name: "Universal Composite Syringe Kit", image: "assets/composite-kit.png" },
+  { name: "Endomotor X2 With Apex Mode", image: "assets/endomotor.png" },
+  { name: "Class B Autoclave 18L", image: "assets/autoclave.png" },
+  { name: "Implant Prosthetic Driver Kit", image: "assets/implant-kit.png" },
+  { name: "Orthodontic Bracket Starter Kit", image: "assets/bracket-kit.png" },
+  { name: "Alginate Impression Material Pack", image: "assets/impression-kit.png" },
+  { name: "Clinic Chair Unit", image: "assets/clinic-chair.png" },
+  { name: "Apex Locator Pro", image: "assets/endomotor.png" },
+  { name: "LED Curing Light", image: "assets/composite-kit.png" },
+  { name: "Disposable Dental Bibs Pack", image: "assets/impression-kit.png" },
+  { name: "Surgical Suture Starter Set", image: "assets/implant-kit.png" },
+];
+const retiredDefaultProductIds = new Set(retiredDefaultProductSeeds.map((product) => slugifyProduct(product.name)));
+const retiredDefaultProductImages = new Set(retiredDefaultProductSeeds.map((product) => normalizeStoredImage(product.image)));
 
 const defaultAds = [
   {
@@ -279,212 +296,8 @@ const categorySeoRoutes = [
 const categorySeoBySlug = new Map(categorySeoRoutes.map((route) => [route.slug, route]));
 const categorySeoByTerm = new Map(categorySeoRoutes.flatMap((route) => route.terms.map((term) => [slugifyProduct(term), route])));
 
-const productDetails = {
-  "Airotor Elite Handpiece": {
-    badge: "18% off",
-    brand: "Waldent",
-    price: 1899,
-    mrp: 2299,
-    rating: "4.7",
-    image: "assets/air-rotor.png",
-    alt: "Airotor Elite Handpiece",
-    description: "Push button cartridge, clean spray, ceramic bearings for daily restorative procedures.",
-    delivery: "Dispatch today from Delhi warehouse",
-    specs: {
-      Brand: "Waldent-style",
-      Type: "Push button",
-      Warranty: "6 months",
-      Pack: "1 handpiece",
-    },
-  },
-  "Universal Composite Syringe Kit": {
-    badge: "Free applicators",
-    brand: "3M ESPE",
-    price: 1249,
-    mrp: 1650,
-    rating: "4.8",
-    image: "assets/composite-kit.png",
-    alt: "Universal Composite Syringe Kit",
-    description: "Microhybrid restorative shades for daily anterior and posterior work.",
-    delivery: "Ships with shade guide and applicator tips",
-    specs: {
-      Shades: "A1, A2, A3",
-      Material: "Microhybrid",
-      Use: "Anterior/posterior",
-      Pack: "4 syringes",
-    },
-  },
-  "Endomotor X2 With Apex Mode": {
-    badge: "Clinic pick",
-    brand: "Woodpecker",
-    price: 7999,
-    mrp: 9450,
-    rating: "4.6",
-    image: "assets/endomotor.png",
-    alt: "Endomotor X2 With Apex Mode",
-    description: "Programmable torque, auto reverse, memory presets, and apex mode for endodontic workflows.",
-    delivery: "Priority dispatch with setup callback",
-    specs: {
-      Modes: "Auto reverse",
-      Battery: "Rechargeable",
-      Memory: "9 presets",
-      Warranty: "1 year",
-    },
-  },
-  "Class B Autoclave 18L": {
-    badge: "Installation support",
-    brand: "Waldent",
-    price: 42999,
-    mrp: 49999,
-    rating: "4.5",
-    image: "assets/autoclave.png",
-    alt: "Class B Autoclave 18L",
-    description: "Pre-vacuum cycles, printer-ready operation, tray set, and installation callback.",
-    delivery: "Delivery and installation callback included",
-    specs: {
-      Capacity: "18 litres",
-      Cycle: "Pre-vacuum",
-      Trays: "3 included",
-      Warranty: "1 year",
-    },
-  },
-  "Implant Prosthetic Driver Kit": {
-    badge: "New",
-    brand: "Dentsply",
-    price: 3499,
-    mrp: 4200,
-    rating: "4.4",
-    image: "assets/implant-kit.png",
-    alt: "Implant Prosthetic Driver Kit",
-    description: "Hex drivers and torque adapters organized for chairside implant prosthetics.",
-    delivery: "Ships in protective organizer case",
-    specs: {
-      Drivers: "Hex set",
-      Torque: "Adapter ready",
-      Material: "Stainless steel",
-      Pack: "Complete kit",
-    },
-  },
-  "Orthodontic Bracket Starter Kit": {
-    badge: "Value pack",
-    brand: "Orthometric",
-    price: 999,
-    mrp: 1360,
-    rating: "4.3",
-    image: "assets/bracket-kit.png",
-    alt: "Orthodontic Bracket Starter Kit",
-    description: "Roth slot assortment with tubes, hooks, and labelled storage.",
-    delivery: "Usually dispatched in 24 hours",
-    specs: {
-      Slot: "Roth",
-      Contents: "Brackets + tubes",
-      Cases: "Upper/lower",
-      Pack: "Starter kit",
-    },
-  },
-  "Alginate Impression Material Pack": {
-    badge: "Bundle",
-    brand: "GC",
-    price: 699,
-    mrp: 920,
-    rating: "4.2",
-    image: "assets/impression-kit.png",
-    alt: "Alginate Impression Material Pack",
-    description: "Fast set powder, measuring scoop, and tray adhesive sample.",
-    delivery: "Ships with scoop and adhesive sample",
-    specs: {
-      Setting: "Fast set",
-      Flavor: "Mint",
-      Use: "Primary impressions",
-      Pack: "1 pouch",
-    },
-  },
-  "Clinic Chair Unit": {
-    badge: "Quote assist",
-    brand: "Waldent",
-    price: 149999,
-    mrp: 168000,
-    rating: "4.6",
-    image: "assets/clinic-chair.png",
-    alt: "Clinic Chair Unit",
-    description: "Delivery, installation callback, and accessory checklist for new clinic setup.",
-    delivery: "Quote callback before dispatch",
-    specs: {
-      Setup: "Single chair",
-      Support: "Installation",
-      Accessories: "Checklist included",
-      Warranty: "1 year",
-    },
-  },
-  "Apex Locator Pro": {
-    badge: "Hot deal",
-    brand: "Woodpecker",
-    price: 5199,
-    mrp: 6250,
-    rating: "4.5",
-    image: "assets/endomotor.png",
-    alt: "Apex Locator Pro",
-    description: "Compact apex measurement unit with clear chairside display.",
-    delivery: "Ships with file clip and lip hook set",
-    specs: {
-      Brand: "Woodpecker",
-      Display: "Color indicator",
-      Mode: "Apex tracking",
-      Warranty: "6 months",
-    },
-  },
-  "LED Curing Light": {
-    badge: "Free shield",
-    brand: "NSK",
-    price: 2899,
-    mrp: 3600,
-    rating: "4.4",
-    image: "assets/composite-kit.png",
-    alt: "LED Curing Light",
-    description: "Fast cure modes, rechargeable body, and protective eye shield.",
-    delivery: "Usually dispatched in 24 hours",
-    specs: {
-      Brand: "NSK",
-      Modes: "Fast and ramp",
-      Battery: "Rechargeable",
-      Pack: "Light + shield",
-    },
-  },
-  "Disposable Dental Bibs Pack": {
-    badge: "Bulk saver",
-    brand: "GC",
-    price: 349,
-    mrp: 520,
-    rating: "4.1",
-    image: "assets/impression-kit.png",
-    alt: "Disposable Dental Bibs Pack",
-    description: "Water-resistant patient bibs for daily operatory turnover.",
-    delivery: "Ships in protective carton for clinic storage",
-    specs: {
-      Brand: "GC",
-      Layers: "2 ply + film",
-      Use: "Patient protection",
-      Pack: "100 pieces",
-    },
-  },
-  "Surgical Suture Starter Set": {
-    badge: "Starter set",
-    brand: "Dentsply",
-    price: 1199,
-    mrp: 1540,
-    rating: "4.3",
-    image: "assets/implant-kit.png",
-    alt: "Surgical Suture Starter Set",
-    description: "Assorted sterile sutures for implant and minor surgery cases.",
-    delivery: "Sterile pack dispatch with invoice copy",
-    specs: {
-      Brand: "Dentsply",
-      Type: "Assorted sutures",
-      Use: "Surgery and implants",
-      Pack: "Starter set",
-    },
-  },
-};
+const productDetails = {};
+
 
 function escapeHtml(value) {
   return String(value ?? "").replace(/[&<>"']/g, (char) => {
@@ -515,6 +328,22 @@ function uniqueImages(images) {
 
 function isInlineImage(value) {
   return String(value || "").startsWith("data:image/");
+}
+
+function normalizeStoredImage(value) {
+  return String(value || "").trim().replace(/^\/+/, "");
+}
+
+function isRetiredDefaultProduct(product) {
+  const id = slugifyProduct(product.id || product.name);
+  const nameId = slugifyProduct(product.name);
+  const images = uniqueImages([product.image, ...parseImageList(product.images)]).map(normalizeStoredImage);
+  return (retiredDefaultProductIds.has(id) || retiredDefaultProductIds.has(nameId)) && images.some((image) => retiredDefaultProductImages.has(image));
+}
+
+function isRetiredDefaultBrand(brand) {
+  const id = slugifyProduct(brand.id || brand.name);
+  return retiredDefaultBrandIds.has(id) && !String(brand.logo || "").trim() && !brand.updatedAt;
 }
 
 function safeLocalStorageSet(key, value) {
@@ -558,6 +387,7 @@ function normalizeAdminProduct(product) {
 function loadAdminProducts() {
   try {
     return JSON.parse(localStorage.getItem(ADMIN_PRODUCTS_KEY) || "[]")
+      .filter((product) => !isRetiredDefaultProduct(product))
       .map(normalizeAdminProduct)
       .filter((product) => product.name);
   } catch {
@@ -567,6 +397,7 @@ function loadAdminProducts() {
 
 function saveAdminProducts(products) {
   const compactProducts = products
+    .filter((product) => !isRetiredDefaultProduct(product))
     .map(normalizeAdminProduct)
     .filter((product) => product.name)
     .map((product) => ({
@@ -787,6 +618,7 @@ function normalizeBrand(brand) {
     logo: String(brand.logo || "").trim(),
     description: String(brand.description || "").trim(),
     featured: brand.featured !== false,
+    updatedAt: String(brand.updatedAt || "").trim(),
   };
 }
 
@@ -794,7 +626,7 @@ function loadAdminBrands() {
   try {
     const stored = JSON.parse(localStorage.getItem(ADMIN_BRANDS_KEY) || "null");
     if (Array.isArray(stored)) {
-      return stored.map(normalizeBrand).filter((brand) => brand.name);
+      return stored.filter((brand) => !isRetiredDefaultBrand(brand)).map(normalizeBrand).filter((brand) => brand.name);
     }
   } catch {}
   return [];
@@ -802,6 +634,7 @@ function loadAdminBrands() {
 
 function saveAdminBrands(brands) {
   const compactBrands = brands
+    .filter((brand) => !isRetiredDefaultBrand(brand))
     .map(normalizeBrand)
     .filter((brand) => brand.name)
     .map((brand) => ({ ...brand, logo: isInlineImage(brand.logo) ? "" : brand.logo }));
@@ -812,7 +645,7 @@ async function fetchBackendBrands() {
   try {
     const brands = await apiJson(BRANDS_API);
     if (!Array.isArray(brands)) return null;
-    return brands.map(normalizeBrand).filter((brand) => brand.name);
+    return brands.filter((brand) => !isRetiredDefaultBrand(brand)).map(normalizeBrand).filter((brand) => brand.name);
   } catch {
     return null;
   }
@@ -1022,7 +855,7 @@ async function fetchBackendProducts() {
   try {
     const products = await apiJson(PRODUCTS_API);
     if (!Array.isArray(products)) return null;
-    return products.map(normalizeAdminProduct).filter((product) => product.name);
+    return products.filter((product) => !isRetiredDefaultProduct(product)).map(normalizeAdminProduct).filter((product) => product.name);
   } catch {
     return null;
   }
@@ -1527,7 +1360,8 @@ function setAccountModalMode(mode) {
 
 function updateAccountButtons() {
   const account = loadCustomerAccount();
-  if (!account?.clinic) {
+  const isLoggedIn = Boolean(account?.id || account?.clinic || account?.name || account?.mobile || account?.email);
+  if (!isLoggedIn) {
     $$("[id='loginButton']").forEach((button) => {
       const label = button.querySelector("span");
       if (label) label.textContent = "Login";
@@ -1540,7 +1374,7 @@ function updateAccountButtons() {
   const name = accountDisplayName(account);
   $$("[id='loginButton']").forEach((button) => {
     const label = button.querySelector("span");
-    if (label) label.textContent = name.length > 16 ? `${name.slice(0, 14)}...` : name;
+    if (label) label.textContent = name && name !== "Account" ? (name.length > 14 ? `${name.slice(0, 12)}...` : name) : "Account";
     button.setAttribute("aria-label", `${name} account`);
     button.title = `${name} account`;
   });
@@ -1758,6 +1592,7 @@ function renderCustomerDashboard(payload) {
   const account = latestCustomerDashboard.account || {};
   saveCustomerAccount(account);
   updateAccountButtons();
+  document.body.classList.add("customer-logged-in");
   customerLoginShell?.setAttribute("hidden", "");
   customerDashboard.hidden = false;
   if (customerDashboardName) customerDashboardName.textContent = customerName(account);
@@ -1781,8 +1616,19 @@ function renderCustomerDashboard(payload) {
 }
 
 function showCustomerLogin() {
+  document.body.classList.remove("customer-logged-in");
   if (customerLoginShell) customerLoginShell.hidden = false;
   if (customerDashboard) customerDashboard.hidden = true;
+}
+
+function setAccountPane(name = "profile") {
+  const target = String(name || "profile");
+  $$("[data-account-tab]").forEach((button) => {
+    button.classList.toggle("is-active", button.dataset.accountTab === target);
+  });
+  $$("[data-account-pane]").forEach((pane) => {
+    pane.classList.toggle("is-active", pane.dataset.accountPane === target);
+  });
 }
 
 async function fetchBackendOrders() {
@@ -2766,7 +2612,7 @@ function renderAdminProductRows(products) {
 }
 
 function syncLocalAdminProducts(products) {
-  const normalizedProducts = products.map(normalizeAdminProduct).filter((product) => product.name);
+  const normalizedProducts = products.filter((product) => !isRetiredDefaultProduct(product)).map(normalizeAdminProduct).filter((product) => product.name);
   saveAdminProducts(normalizedProducts);
   if (productAdminTable) {
     renderAdminProductRows(normalizedProducts);
@@ -2829,7 +2675,7 @@ function applyProductCardData(card, product) {
 
 function renderAdminProductsOnStorefront(products = loadAdminProducts()) {
   if (!productGrid) return;
-  const normalizedProducts = products.map(normalizeAdminProduct).filter((product) => product.name);
+  const normalizedProducts = products.filter((product) => !isRetiredDefaultProduct(product)).map(normalizeAdminProduct).filter((product) => product.name);
   const productNames = new Set(normalizedProducts.map((product) => product.name));
   refreshProductCards();
   productCards.forEach((card) => {
@@ -3615,8 +3461,9 @@ if (checkoutButton) checkoutButton.addEventListener("click", openCheckout);
 if (closeCheckout) closeCheckout.addEventListener("click", hideCheckout);
 $$("[id='loginButton']").forEach((button) =>
   button.addEventListener("click", (event) => {
-    if (customerLoginForm || customerDashboard) return;
-    openAccount(event);
+    if (button.tagName.toLowerCase() === "a") return;
+    event.preventDefault();
+    window.location.href = "login.html";
   })
 );
 if (accountModal) ensureAccountModal();
@@ -3827,6 +3674,36 @@ customerLoginForm?.addEventListener("submit", async (event) => {
   }
 });
 
+$$("[data-toggle-password]").forEach((button) => {
+  button.addEventListener("click", () => {
+    const field = customerLoginForm?.querySelector(".password-login-field");
+    if (!field) return;
+    field.hidden = !field.hidden;
+  });
+});
+
+$$("[data-login-email]").forEach((button) => {
+  button.addEventListener("click", () => {
+    customerLoginForm?.elements.login?.focus();
+  });
+});
+
+$$("[data-back-login]").forEach((button) => {
+  button.addEventListener("click", () => {
+    if (customerOtpForm) customerOtpForm.hidden = true;
+    customerLoginForm?.elements.login?.focus();
+  });
+});
+
+$$("[data-account-tab]").forEach((button) => {
+  button.addEventListener("click", () => setAccountPane(button.dataset.accountTab));
+});
+
+$("[data-focus-address]")?.addEventListener("click", () => {
+  setAccountPane("addresses");
+  customerAddressForm?.elements.label?.focus();
+});
+
 customerOtpForm?.addEventListener("submit", async (event) => {
   event.preventDefault();
   const form = event.currentTarget;
@@ -3942,6 +3819,7 @@ customerLogoutButton?.addEventListener("click", async () => {
   } catch {}
   localStorage.removeItem(CUSTOMER_ACCOUNT_KEY);
   updateAccountButtons();
+  if (customerOtpForm) customerOtpForm.hidden = true;
   showCustomerLogin();
 });
 
@@ -3951,6 +3829,7 @@ customerLogoutAllButton?.addEventListener("click", async () => {
   } catch {}
   localStorage.removeItem(CUSTOMER_ACCOUNT_KEY);
   updateAccountButtons();
+  if (customerOtpForm) customerOtpForm.hidden = true;
   showCustomerLogin();
 });
 

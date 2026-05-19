@@ -314,6 +314,24 @@ const defaultAds = [
   },
 ];
 const retiredDefaultAdIds = new Set(defaultAds.map((ad) => slugify(ad.id || `${ad.placement}-${ad.title}`)));
+const retiredDefaultProductIds = new Set(defaultProducts.flatMap((product) => [product.id, product.name].map(slugify)).filter(Boolean));
+const retiredDefaultProductImages = new Set(defaultProducts.map((product) => normalizeStoredImage(product.image)).filter(Boolean));
+const retiredDefaultBrandIds = new Set(defaultBrands.flatMap((brand) => [brand.id, brand.name].map(slugify)).filter(Boolean));
+
+function normalizeStoredImage(value) {
+  return String(value || "").trim().replace(/^\/+/, "");
+}
+
+function isRetiredDefaultProduct(product) {
+  const ids = [product.id, product.name].map(slugify).filter(Boolean);
+  const images = [product.image, ...rawImageList(product.images)].map(normalizeStoredImage).filter(Boolean);
+  return ids.some((id) => retiredDefaultProductIds.has(id)) && images.some((image) => retiredDefaultProductImages.has(image));
+}
+
+function isRetiredDefaultBrand(brand) {
+  const id = slugify(brand.id || brand.name);
+  return retiredDefaultBrandIds.has(id) && !String(brand.logo || "").trim() && !brand.updatedAt;
+}
 
 function isRetiredDefaultAd(ad) {
   const id = slugify(ad.id || `${ad.placement || "home-banner"}-${ad.title || ""}`);
@@ -484,6 +502,20 @@ function normalizeProduct(product) {
     gstRate: Number(product.gstRate ?? defaultGstRate),
     updatedAt: product.updatedAt || new Date().toISOString(),
   };
+}
+
+function visibleStoredProducts(products) {
+  return asArray(products)
+    .filter((product) => !isRetiredDefaultProduct(product))
+    .map(normalizeProduct)
+    .filter((product) => product.name);
+}
+
+function visibleStoredBrands(brands) {
+  return asArray(brands)
+    .filter((brand) => !isRetiredDefaultBrand(brand))
+    .map(normalizeBrand)
+    .filter((brand) => brand.name);
 }
 
 function normalizeBrand(brand) {
@@ -1161,6 +1193,26 @@ async function migrateInlineUploads() {
   }
 }
 
+async function pruneRetiredSeedData() {
+  const products = asArray(await readJson(productsFile, []));
+  const visibleProducts = products.filter((product) => !isRetiredDefaultProduct(product));
+  if (visibleProducts.length !== products.length) {
+    await writeJson(productsFile, visibleProducts);
+  }
+
+  const brands = asArray(await readJson(brandsFile, []));
+  const visibleBrands = brands.filter((brand) => !isRetiredDefaultBrand(brand));
+  if (visibleBrands.length !== brands.length) {
+    await writeJson(brandsFile, visibleBrands);
+  }
+
+  const ads = asArray(await readJson(adsFile, []));
+  const visibleAds = ads.filter((ad) => !isRetiredDefaultAd(ad));
+  if (visibleAds.length !== ads.length) {
+    await writeJson(adsFile, visibleAds);
+  }
+}
+
 async function readJson(filePath, fallback) {
   try {
     return JSON.parse(await fs.readFile(filePath, "utf8"));
@@ -1190,7 +1242,7 @@ async function writeJson(filePath, data) {
 async function checkoutPayloadFromBody(body) {
   const customer = normalizeOrderCustomer(body.customer || {});
   const submittedItems = Array.isArray(body.items) ? body.items.map(normalizeOrderItem).filter((item) => item.name) : [];
-  const catalog = asArray(await readJson(productsFile, [])).map(normalizeProduct);
+  const catalog = visibleStoredProducts(await readJson(productsFile, []));
   const productsByName = new Map(catalog.map((product) => [product.name.toLowerCase(), product]));
   const items = submittedItems.map((item) => {
     const catalogProduct = productsByName.get(item.name.toLowerCase());
@@ -1544,9 +1596,7 @@ async function handleApi(req, res, reqUrl) {
   }
 
   if (reqUrl.pathname === "/api/brands" && req.method === "GET") {
-    const brands = asArray(await readJson(brandsFile, []))
-      .map(normalizeBrand)
-      .filter((brand) => brand.name)
+    const brands = visibleStoredBrands(await readJson(brandsFile, []))
       .sort((a, b) => a.name.localeCompare(b.name));
     sendJson(res, 200, brands);
     return;
@@ -1560,7 +1610,7 @@ async function handleApi(req, res, reqUrl) {
       sendJson(res, 400, { error: "Brand name is required" });
       return;
     }
-    const brands = asArray(await readJson(brandsFile, [])).map(normalizeBrand);
+    const brands = visibleStoredBrands(await readJson(brandsFile, []));
     const editing = String(body.editing || brand.id || brand.name);
     const editingSlug = slugify(editing);
     const index = brands.findIndex((item) => item.id === editingSlug || item.name.toLowerCase() === editing.toLowerCase());
@@ -1579,13 +1629,13 @@ async function handleApi(req, res, reqUrl) {
     if (!requireAdmin(req, res)) return;
     const idOrName = decodeURIComponent(reqUrl.pathname.replace("/api/brands/", ""));
     const id = slugify(idOrName);
-    const products = asArray(await readJson(productsFile, [])).map(normalizeProduct);
+    const products = visibleStoredProducts(await readJson(productsFile, []));
     const brandInUse = products.some((product) => slugify(product.brand) === id || product.brand.toLowerCase() === idOrName.toLowerCase());
     if (brandInUse) {
       sendJson(res, 409, { error: "This brand is used by products. Change or delete those products before deleting the brand." });
       return;
     }
-    const brands = asArray(await readJson(brandsFile, [])).map(normalizeBrand);
+    const brands = visibleStoredBrands(await readJson(brandsFile, []));
     const nextBrands = brands.filter((brand) => brand.id !== id && brand.name !== idOrName);
     await writeJson(brandsFile, nextBrands);
     sendJson(res, 200, { deleted: brands.length - nextBrands.length, id: idOrName });
@@ -1644,8 +1694,8 @@ async function handleApi(req, res, reqUrl) {
   }
 
   if (reqUrl.pathname === "/api/products" && req.method === "GET") {
-    const products = asArray(await readJson(productsFile, []));
-    sendJson(res, 200, products.map(normalizeProduct));
+    const products = visibleStoredProducts(await readJson(productsFile, []));
+    sendJson(res, 200, products);
     return;
   }
 
@@ -1658,7 +1708,7 @@ async function handleApi(req, res, reqUrl) {
       return;
     }
 
-    const products = asArray(await readJson(productsFile, [])).map(normalizeProduct);
+    const products = visibleStoredProducts(await readJson(productsFile, []));
     const editing = String(body.editing || product.id || product.name);
     const editingSlug = slugify(editing);
     const index = products.findIndex((item) => item.id === editingSlug || item.name === editing);
@@ -1679,7 +1729,7 @@ async function handleApi(req, res, reqUrl) {
     if (!requireAdmin(req, res)) return;
     const idOrName = decodeURIComponent(reqUrl.pathname.replace("/api/products/", ""));
     const id = slugify(idOrName);
-    const products = asArray(await readJson(productsFile, [])).map(normalizeProduct);
+    const products = visibleStoredProducts(await readJson(productsFile, []));
     const nextProducts = products.filter((product) => product.id !== id && product.name !== idOrName);
     await writeJson(productsFile, nextProducts);
     sendJson(res, 200, { deleted: products.length - nextProducts.length, id: idOrName });
@@ -2133,7 +2183,7 @@ async function serveUploadedAsset(res, requestPath) {
 }
 
 async function readCatalogProducts() {
-  return asArray(await readJson(productsFile, [])).map(normalizeProduct).filter((product) => product.name);
+  return visibleStoredProducts(await readJson(productsFile, []));
 }
 
 async function handleLegacyRedirects(res, reqUrl) {
@@ -2352,6 +2402,7 @@ async function handleStatic(req, res, reqUrl) {
 
 await ensureDataFiles();
 await migrateInlineUploads();
+await pruneRetiredSeedData();
 
 const server = http.createServer(async (req, res) => {
   try {
