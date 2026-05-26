@@ -8,7 +8,7 @@
     <link rel="canonical" href="https://bhartidentindia.com/login.html" />
     <meta name="robots" content="noindex, follow" />
     <link rel="preconnect" href="https://unpkg.com" />
-    <link rel="stylesheet" href="/styles.css?v=20260519-adminonly" />
+    <link rel="stylesheet" href="/styles.css?v=20260526-authcomplete" />
     <link rel="icon" href="/assets/dental-factory-logo-mark.png?v=20260517-logo" />
   </head>
   <body class="customer-auth-page">
@@ -42,13 +42,13 @@
             <h2>Log In or Sign up</h2>
             <p>Sign up now and manage your dental purchases faster.</p>
             <input name="type" type="hidden" value="clinic" />
-            <label class="phone-login-field"><span>+91</span><input name="login" required autocomplete="username" inputmode="email" placeholder="Mobile Number or Email" /></label>
+            <label class="phone-login-field"><span data-login-prefix>+91</span><input name="login" required autocomplete="new-password" inputmode="numeric" placeholder="Mobile Number" /></label>
             <label class="password-login-field" hidden>Password optional<input name="password" type="password" autocomplete="new-password" placeholder="Use password later if needed" /></label>
             <div class="auth-card-links"><button type="button" data-toggle-password>Use Password</button><button type="button" data-login-email>Login with Email</button></div>
             <button class="checkout-button" type="submit">Send OTP</button>
             <p class="auth-referral">Have a Referral Code?</p>
             <div class="auth-divider"><span></span>Or<span></span></div>
-            <button class="google-button" type="button" disabled><strong>G</strong> Continue with Google</button>
+            <button class="google-button" type="button" data-google-login><strong>G</strong> Continue with Google</button>
             <p class="auth-help">Need help? <a href="https://wa.me/917678541041">Connect with us</a></p>
             <p class="auth-terms">By logging or signing up, you agree to our <a href="terms.html">Terms</a> & <a href="privacy-policy.html">Policy</a></p>
             <p class="checkout-message" id="customerLoginMessage" role="status"></p>
@@ -198,6 +198,6 @@
 </footer>
 
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
-    <script src="/script.js?v=20260519-adminonly"></script>
+    <script src="/script.js?v=20260526-authcomplete"></script>
   </body>
 </html>

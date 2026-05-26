@@ -1749,6 +1749,12 @@ main {
   font-weight: 900;
 }
 
+.phone-login-field span.is-email-prefix {
+  width: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
 .phone-login-field input {
   min-width: 0;
   min-height: 54px;
@@ -1825,6 +1831,12 @@ main {
 .google-button strong {
   color: #1a73e8;
   font-size: 1.15rem;
+}
+
+.google-signin-slot {
+  display: flex;
+  justify-content: center;
+  min-height: 44px;
 }
 
 .customer-auth-page.customer-logged-in {

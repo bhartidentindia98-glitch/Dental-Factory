@@ -17,10 +17,17 @@ Open `http://127.0.0.1:5173/`.
 - `RAZORPAY_KEY_ID`: Razorpay test or live Key ID for online payments.
 - `RAZORPAY_KEY_SECRET`: Razorpay test or live Key Secret for server-side order creation and signature verification.
 - `PAYMENT_CURRENCY`: keep `INR` for Indian payments.
+- `GOOGLE_CLIENT_ID`: Google OAuth web client ID. When set, the customer login page shows the official Google sign-in button and verifies the ID token on the backend.
+- `OTP_SHOW_DEMO`: keep `false` on live. Use `true` only for testing when no SMS/email gateway is connected.
+- `OTP_SMS_WEBHOOK_URL` and `OTP_SMS_WEBHOOK_TOKEN`: SMS provider endpoint and token for mobile OTP. The server posts `{ channel, to, otp, message, brand, expiresInSeconds }`.
+- `OTP_EMAIL_WEBHOOK_URL` and `OTP_EMAIL_WEBHOOK_TOKEN`: email provider endpoint and token for email OTP. The same payload is posted.
+- `OTP_MESSAGE_TEMPLATE`: optional OTP text. Available placeholders: `{{otp}}`, `{{login}}`, `{{brand}}`, `{{minutes}}`.
 - `PORT`: hosting providers usually set this automatically.
 
 Admin login is disabled on production until `ADMIN_PASSWORD` is set in Render. This prevents the local demo password from working on the live website.
 Online payment remains disabled until the two Razorpay keys are set in Render.
+Real OTP delivery remains disabled until either the SMS webhook or email webhook is set in Render. Local development can still show a testing OTP.
+Google login remains disabled until `GOOGLE_CLIENT_ID` is set in Render.
 Orders, admin-created products, uploaded product photos, brand logos, and banner ads are stored under `DATA_DIR`. On Render, keep the persistent disk mounted at `/var/data`; without persistent storage, deploys/restarts can wipe admin uploads.
 
 ## Live commands

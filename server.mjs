@@ -17,6 +17,13 @@ const sessionSecret = process.env.SESSION_SECRET || (isProduction ? crypto.rando
 const razorpayKeyId = process.env.RAZORPAY_KEY_ID || "";
 const razorpayKeySecret = process.env.RAZORPAY_KEY_SECRET || "";
 const paymentCurrency = String(process.env.PAYMENT_CURRENCY || "INR").toUpperCase();
+const googleClientId = String(process.env.GOOGLE_CLIENT_ID || "").trim();
+const otpSenderName = String(process.env.OTP_SENDER_NAME || "Dental Factory").trim();
+const otpSmsWebhookUrl = String(process.env.OTP_SMS_WEBHOOK_URL || process.env.OTP_SMS_URL || "").trim();
+const otpSmsWebhookToken = String(process.env.OTP_SMS_WEBHOOK_TOKEN || process.env.OTP_SMS_TOKEN || "").trim();
+const otpEmailWebhookUrl = String(process.env.OTP_EMAIL_WEBHOOK_URL || process.env.OTP_EMAIL_URL || "").trim();
+const otpEmailWebhookToken = String(process.env.OTP_EMAIL_WEBHOOK_TOKEN || process.env.OTP_EMAIL_TOKEN || "").trim();
+const otpShowDemo = process.env.OTP_SHOW_DEMO === "true" || (!isProduction && process.env.OTP_SHOW_DEMO !== "false");
 const cashOnDeliveryMethod = "Cash on delivery";
 const freeShippingThreshold = 2999;
 const standardShippingFee = 99;
@@ -103,9 +110,9 @@ const securityHeaders = {
     "frame-ancestors 'none'",
     "img-src 'self' data: https:",
     "style-src 'self' 'unsafe-inline'",
-    "script-src 'self' 'unsafe-inline' https://unpkg.com https://checkout.razorpay.com",
-    "connect-src 'self' https://nominatim.openstreetmap.org https://api.razorpay.com",
-    "frame-src https://api.razorpay.com https://checkout.razorpay.com",
+    "script-src 'self' 'unsafe-inline' https://unpkg.com https://checkout.razorpay.com https://accounts.google.com",
+    "connect-src 'self' https://nominatim.openstreetmap.org https://api.razorpay.com https://accounts.google.com https://oauth2.googleapis.com",
+    "frame-src https://api.razorpay.com https://checkout.razorpay.com https://accounts.google.com",
     "form-action 'self'",
   ].join("; "),
 };
@@ -838,6 +845,71 @@ function maskLogin(value) {
     return `${name.slice(0, 2)}***@${domain}`;
   }
   return login.length >= 4 ? `${"*".repeat(Math.max(0, login.length - 4))}${login.slice(-4)}` : "";
+}
+
+function templateText(template, values = {}) {
+  return String(template || "").replace(/\{\{(otp|login|brand|minutes)\}\}/gi, (_, key) => String(values[key.toLowerCase()] ?? ""));
+}
+
+async function postOtpWebhook(url, token, payload) {
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) {
+    const text = await response.text().catch(() => "");
+    throw new Error(`OTP gateway failed (${response.status})${text ? `: ${text.slice(0, 160)}` : ""}`);
+  }
+}
+
+async function deliverCustomerOtp(login, otp) {
+  const isEmail = String(login || "").includes("@");
+  const minutes = Math.ceil(customerOtpMaxAgeSeconds / 60);
+  const message = templateText(process.env.OTP_MESSAGE_TEMPLATE || "{{otp}} is your Dental Factory login OTP. It is valid for {{minutes}} minutes.", {
+    otp,
+    login: maskLogin(login),
+    brand: otpSenderName,
+    minutes,
+  });
+  const channel = isEmail ? "email" : "sms";
+  const webhookUrl = isEmail ? otpEmailWebhookUrl : otpSmsWebhookUrl;
+  const token = isEmail ? otpEmailWebhookToken : otpSmsWebhookToken;
+
+  if (!webhookUrl) {
+    return { channel, delivered: false, configured: false };
+  }
+
+  await postOtpWebhook(webhookUrl, token, {
+    channel,
+    to: login,
+    otp,
+    message,
+    brand: otpSenderName,
+    expiresInSeconds: customerOtpMaxAgeSeconds,
+  });
+  return { channel, delivered: true, configured: true };
+}
+
+async function verifyGoogleCredential(credential) {
+  if (!googleClientId) throw new Error("Google login is not configured.");
+  const tokenUrl = new URL("https://oauth2.googleapis.com/tokeninfo");
+  tokenUrl.searchParams.set("id_token", credential);
+  const response = await fetch(tokenUrl);
+  if (!response.ok) throw new Error("Google login verification failed.");
+  const profile = await response.json();
+  if (profile.aud !== googleClientId) throw new Error("Google login audience mismatch.");
+  if (String(profile.email_verified) !== "true") throw new Error("Google email is not verified.");
+  if (!profile.email || !profile.sub) throw new Error("Google account details are incomplete.");
+  return {
+    googleSub: String(profile.sub),
+    email: normalizeEmail(profile.email),
+    name: cleanText(profile.name || "", 140),
+    picture: cleanText(profile.picture || "", 500),
+  };
 }
 
 function normalizeOrderItem(item) {
@@ -1890,13 +1962,89 @@ async function handleApi(req, res, reqUrl) {
 
     if (index >= 0) accounts[index] = updated;
     else accounts.unshift(updated);
+    let delivery;
+    try {
+      delivery = await deliverCustomerOtp(login, otp);
+    } catch (error) {
+      sendJson(res, 502, { error: error.message || "OTP delivery failed. Please try again." });
+      return;
+    }
+    if (!delivery.configured && !otpShowDemo) {
+      sendJson(res, 503, { error: "OTP service is not configured. Add SMS/email gateway settings in Render first." });
+      return;
+    }
     await writeJson(accountsFile, accounts);
     sendJson(res, index >= 0 ? 200 : 201, {
       account: safeAccount(updated),
       otpSentTo: maskLogin(login),
       otpExpiresInSeconds: customerOtpMaxAgeSeconds,
-      demoOtp: otp,
-      message: "OTP generated. Connect SMS/email gateway later to send this automatically.",
+      demoOtp: otpShowDemo ? otp : "",
+      delivered: delivery.delivered,
+      channel: delivery.channel,
+      message: delivery.delivered ? "OTP sent." : "OTP generated for testing.",
+    });
+    return;
+  }
+
+  if (reqUrl.pathname === "/api/customer/google" && req.method === "POST") {
+    if (!checkRateLimit(req, res, "customer-google-login", 20, 15 * 60 * 1000)) return;
+    if (!googleClientId) {
+      sendJson(res, 503, { error: "Google login is not configured. Add GOOGLE_CLIENT_ID in Render Environment first." });
+      return;
+    }
+    const body = await readRequestJson(req, 32 * 1024);
+    const credential = String(body.credential || "").trim();
+    if (!credential) {
+      sendJson(res, 400, { error: "Google credential missing." });
+      return;
+    }
+
+    let profile;
+    try {
+      profile = await verifyGoogleCredential(credential);
+    } catch (error) {
+      sendJson(res, 401, { error: error.message || "Google login failed." });
+      return;
+    }
+
+    const now = new Date().toISOString();
+    const accounts = asArray(await readJson(accountsFile, [])).map(normalizeAccount);
+    const index = findCustomerIndex(accounts, profile.email);
+    const base = index >= 0 ? accounts[index] : normalizeAccount({ login: profile.email, email: profile.email });
+    const updated = normalizeAccount({
+      ...base,
+      login: profile.email,
+      email: profile.email,
+      name: profile.name || base.name,
+      clinic: base.clinic,
+      type: base.type || "clinic",
+      status: "Verified",
+      verifiedAt: now,
+      updatedAt: now,
+      notifications: [
+        normalizeNotification({
+          type: "Security",
+          title: "Google login verified",
+          message: `Google sign-in completed for ${maskLogin(profile.email)}.`,
+          createdAt: now,
+        }),
+        ...base.notifications,
+      ].slice(0, 20),
+    });
+    if (index >= 0) accounts[index] = updated;
+    else accounts.unshift(updated);
+    await writeJson(accountsFile, accounts);
+    sendJson(res, index >= 0 ? 200 : 201, await customerDashboardPayload(updated), { "Set-Cookie": customerCookie(createCustomerToken(updated)) });
+    return;
+  }
+
+  if (reqUrl.pathname === "/api/customer/auth/config" && req.method === "GET") {
+    sendJson(res, 200, {
+      googleEnabled: Boolean(googleClientId),
+      googleClientId,
+      otpSmsConfigured: Boolean(otpSmsWebhookUrl),
+      otpEmailConfigured: Boolean(otpEmailWebhookUrl),
+      demoOtpEnabled: otpShowDemo,
     });
     return;
   }

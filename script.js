@@ -140,6 +140,10 @@ let brandButtons = $$(".brand-row button[data-brand], .brand-filter button[data-
 let activeFilter = "all";
 let activeBrand = "";
 let activeSlide = 0;
+let customerLoginMode = "mobile";
+let customerAuthConfig = null;
+let googleIdentityReady = false;
+let googleIdentityScriptPromise = null;
 let latestAdminOrders = [];
 let latestCustomerDashboard = null;
 let adminSessionMinutes = 30;
@@ -154,8 +158,10 @@ const ADMIN_ADS_API = "/api/admin/ads";
 const ORDERS_API = "/api/orders";
 const ORDER_TRACK_API = "/api/orders/track";
 const ACCOUNTS_API = "/api/accounts";
+const CUSTOMER_AUTH_CONFIG_API = "/api/customer/auth/config";
 const CUSTOMER_OTP_START_API = "/api/customer/otp/start";
 const CUSTOMER_OTP_VERIFY_API = "/api/customer/otp/verify";
+const CUSTOMER_GOOGLE_API = "/api/customer/google";
 const CUSTOMER_ME_API = "/api/customer/me";
 const CUSTOMER_PROFILE_API = "/api/customer/profile";
 const CUSTOMER_ADDRESS_API = "/api/customer/addresses";
@@ -1094,10 +1100,27 @@ async function requestCustomerOtp(payload) {
   });
 }
 
+async function fetchCustomerAuthConfig() {
+  if (customerAuthConfig) return customerAuthConfig;
+  try {
+    customerAuthConfig = await apiJson(CUSTOMER_AUTH_CONFIG_API);
+  } catch {
+    customerAuthConfig = { googleEnabled: false, googleClientId: "", demoOtpEnabled: true };
+  }
+  return customerAuthConfig;
+}
+
 async function verifyCustomerOtp(payload) {
   return apiJson(CUSTOMER_OTP_VERIFY_API, {
     method: "POST",
     body: JSON.stringify(payload),
+  });
+}
+
+async function loginWithGoogleCredential(credential) {
+  return apiJson(CUSTOMER_GOOGLE_API, {
+    method: "POST",
+    body: JSON.stringify({ credential }),
   });
 }
 
@@ -1619,6 +1642,7 @@ function showCustomerLogin() {
   document.body.classList.remove("customer-logged-in");
   if (customerLoginShell) customerLoginShell.hidden = false;
   if (customerDashboard) customerDashboard.hidden = true;
+  clearCustomerLoginForm();
 }
 
 function setAccountPane(name = "profile") {
@@ -1629,6 +1653,141 @@ function setAccountPane(name = "profile") {
   $$("[data-account-pane]").forEach((pane) => {
     pane.classList.toggle("is-active", pane.dataset.accountPane === target);
   });
+}
+
+function setCustomerLoginMode(mode = "mobile") {
+  customerLoginMode = mode === "email" ? "email" : "mobile";
+  if (!customerLoginForm) return;
+  const loginInput = customerLoginForm.elements.login;
+  const prefix = customerLoginForm.querySelector("[data-login-prefix]");
+  const emailButton = customerLoginForm.querySelector("[data-login-email]");
+  if (prefix) {
+    prefix.textContent = customerLoginMode === "email" ? "@" : "+91";
+    prefix.classList.toggle("is-email-prefix", customerLoginMode === "email");
+  }
+  if (loginInput) {
+    loginInput.value = "";
+    loginInput.type = customerLoginMode === "email" ? "email" : "text";
+    loginInput.inputMode = customerLoginMode === "email" ? "email" : "numeric";
+    loginInput.placeholder = customerLoginMode === "email" ? "Email Address" : "Mobile Number";
+    loginInput.autocomplete = "new-password";
+  }
+  if (emailButton) {
+    emailButton.textContent = customerLoginMode === "email" ? "Login with Mobile" : "Login with Email";
+  }
+}
+
+function clearCustomerLoginForm({ keepOtp = false, keepMessages = false } = {}) {
+  if (customerLoginForm) {
+    if (customerLoginForm.elements.login) customerLoginForm.elements.login.value = "";
+    if (customerLoginForm.elements.password) customerLoginForm.elements.password.value = "";
+  }
+  if (!keepOtp && customerOtpForm) {
+    customerOtpForm.hidden = true;
+    if (customerOtpForm.elements.login) customerOtpForm.elements.login.value = "";
+    if (customerOtpForm.elements.otp) customerOtpForm.elements.otp.value = "";
+  }
+  if (!keepMessages) {
+    setCustomerMessage(customerLoginMessage, "");
+    setCustomerMessage(customerOtpMessage, "");
+    if (customerOtpHelp) customerOtpHelp.textContent = "Enter the 6 digit OTP.";
+  }
+}
+
+function clearCustomerLoginAutofill() {
+  const loginInput = customerLoginForm?.elements.login;
+  if (loginInput && document.activeElement !== loginInput) loginInput.value = "";
+}
+
+function googleSignInSlot() {
+  const customButton = $("[data-google-login]");
+  if (!customButton) return null;
+  let slot = $("#googleSignInSlot");
+  if (!slot) {
+    slot = document.createElement("div");
+    slot.id = "googleSignInSlot";
+    slot.className = "google-signin-slot";
+    customButton.insertAdjacentElement("afterend", slot);
+  }
+  return slot;
+}
+
+function loadGoogleIdentityScript() {
+  if (window.google?.accounts?.id) return Promise.resolve();
+  if (googleIdentityScriptPromise) return googleIdentityScriptPromise;
+  googleIdentityScriptPromise = new Promise((resolve, reject) => {
+    const existing = document.querySelector('script[src="https://accounts.google.com/gsi/client"]');
+    if (existing) {
+      existing.addEventListener("load", resolve, { once: true });
+      existing.addEventListener("error", reject, { once: true });
+      return;
+    }
+    const script = document.createElement("script");
+    script.src = "https://accounts.google.com/gsi/client";
+    script.async = true;
+    script.defer = true;
+    script.onload = resolve;
+    script.onerror = () => reject(new Error("Google login script load nahi ho paya."));
+    document.head.appendChild(script);
+  });
+  return googleIdentityScriptPromise;
+}
+
+async function handleGoogleCredential(response) {
+  const credential = String(response?.credential || "").trim();
+  if (!credential) {
+    setCustomerMessage(customerLoginMessage, "Google se login response nahi mila.", true);
+    return;
+  }
+  setCustomerMessage(customerLoginMessage, "Google login verify ho raha hai...");
+  try {
+    const dashboard = await loginWithGoogleCredential(credential);
+    setCustomerMessage(customerLoginMessage, "Google login verified.");
+    renderCustomerDashboard(dashboard);
+  } catch (error) {
+    setCustomerMessage(customerLoginMessage, error.message, true);
+  }
+}
+
+async function setupGoogleLoginButton() {
+  if (!customerLoginForm) return;
+  const config = await fetchCustomerAuthConfig();
+  const customButton = $("[data-google-login]");
+  const slot = googleSignInSlot();
+  if (!config.googleEnabled || !config.googleClientId || !slot) {
+    if (customButton) customButton.hidden = false;
+    if (slot) slot.hidden = true;
+    return;
+  }
+
+  try {
+    await loadGoogleIdentityScript();
+    if (!window.google?.accounts?.id) throw new Error("Google login script ready nahi hua.");
+    if (!googleIdentityReady) {
+      window.google.accounts.id.initialize({
+        client_id: config.googleClientId,
+        callback: handleGoogleCredential,
+        auto_select: false,
+        cancel_on_tap_outside: true,
+      });
+      googleIdentityReady = true;
+    }
+    slot.hidden = false;
+    slot.innerHTML = "";
+    if (customButton) customButton.hidden = true;
+    window.google.accounts.id.renderButton(slot, {
+      type: "standard",
+      theme: "outline",
+      size: "large",
+      text: "continue_with",
+      shape: "rectangular",
+      width: Math.min(520, slot.clientWidth || 520),
+    });
+  } catch (error) {
+    if (customButton) customButton.hidden = false;
+    if (slot) slot.hidden = true;
+    setCustomerMessage(customerLoginMessage, error.message, true);
+  }
 }
 
 async function fetchBackendOrders() {
@@ -3663,10 +3822,13 @@ customerLoginForm?.addEventListener("submit", async (event) => {
       customerOtpForm.elements.otp.value = "";
       customerOtpForm.elements.otp.focus();
     }
+    clearCustomerLoginForm({ keepOtp: true, keepMessages: true });
     if (customerOtpHelp) {
-      customerOtpHelp.textContent = `OTP sent to ${response.otpSentTo || "your login"}. Demo OTP: ${response.demoOtp || "check SMS"}`;
+      customerOtpHelp.textContent = response.demoOtp
+        ? `OTP generated for ${response.otpSentTo || "your login"}. Testing OTP: ${response.demoOtp}`
+        : `OTP sent to ${response.otpSentTo || "your login"}.`;
     }
-    setCustomerMessage(customerLoginMessage, "OTP generated. Enter it below to open dashboard.");
+    setCustomerMessage(customerLoginMessage, "Enter OTP below to open dashboard.");
   } catch (error) {
     setCustomerMessage(customerLoginMessage, error.message, true);
   } finally {
@@ -3684,7 +3846,20 @@ $$("[data-toggle-password]").forEach((button) => {
 
 $$("[data-login-email]").forEach((button) => {
   button.addEventListener("click", () => {
+    setCustomerLoginMode(customerLoginMode === "email" ? "mobile" : "email");
     customerLoginForm?.elements.login?.focus();
+  });
+});
+
+$$("[data-google-login]").forEach((button) => {
+  button.addEventListener("click", async () => {
+    const config = await fetchCustomerAuthConfig();
+    if (!config.googleEnabled || !config.googleClientId) {
+      setCustomerMessage(customerLoginMessage, "Google login setup pending hai. Render mein GOOGLE_CLIENT_ID add karna hoga.", true);
+      return;
+    }
+    await setupGoogleLoginButton();
+    setCustomerMessage(customerLoginMessage, "Google button ready hai. Continue with Google par click karein.");
   });
 });
 
@@ -3880,13 +4055,11 @@ document.addEventListener("click", async (event) => {
 
 async function initCustomerPage() {
   if (!customerLoginForm && !customerDashboard) return;
-  const savedAccount = loadCustomerAccount();
-  if (savedAccount && customerLoginForm) {
-    customerLoginForm.elements.login.value = savedAccount.email || savedAccount.mobile || "";
-    customerLoginForm.elements.name.value = savedAccount.name || "";
-    customerLoginForm.elements.clinic.value = savedAccount.clinic || "";
-    customerLoginForm.elements.gstin.value = savedAccount.gstin || "";
-  }
+  setCustomerLoginMode("mobile");
+  clearCustomerLoginForm();
+  [100, 500, 1200].forEach((delay) => window.setTimeout(clearCustomerLoginAutofill, delay));
+  await fetchCustomerAuthConfig();
+  setupGoogleLoginButton();
   try {
     const dashboard = await fetchCustomerDashboard();
     renderCustomerDashboard(dashboard);

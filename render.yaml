@@ -32,3 +32,19 @@ services:
         sync: false
       - key: PAYMENT_CURRENCY
         value: INR
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: OTP_SHOW_DEMO
+        value: false
+      - key: OTP_SENDER_NAME
+        value: Dental Factory
+      - key: OTP_SMS_WEBHOOK_URL
+        sync: false
+      - key: OTP_SMS_WEBHOOK_TOKEN
+        sync: false
+      - key: OTP_EMAIL_WEBHOOK_URL
+        sync: false
+      - key: OTP_EMAIL_WEBHOOK_TOKEN
+        sync: false
+      - key: OTP_MESSAGE_TEMPLATE
+        value: "{{otp}} is your Dental Factory login OTP. It is valid for {{minutes}} minutes."
