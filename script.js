@@ -177,6 +177,10 @@ const ADMIN_LOGIN_API = "/api/admin/login";
 const ADMIN_LOGOUT_API = "/api/admin/logout";
 const CUSTOMER_ACCOUNT_KEY = "dentalFactoryCustomerAccount";
 const CUSTOMER_WISHLIST_KEY = "dentalFactoryWishlist";
+const LEGACY_CART_KEY = "dentalFactoryCart";
+const GUEST_CART_KEY = "dentalFactoryGuestCart";
+const CUSTOMER_CART_PREFIX = "dentalFactoryCustomerCart:";
+const CHECKOUT_AFTER_LOGIN_KEY = "dentalFactoryCheckoutAfterLogin";
 const DELIVERY_PIN_KEY = "dentalFactoryDeliveryPin";
 const LAST_ORDER_KEY = "dentalFactoryLastOrder";
 const CASH_ON_DELIVERY_METHOD = "Cash on delivery";
@@ -903,6 +907,18 @@ function checkoutCustomerFromForm(form) {
   };
 }
 
+function hydrateCheckoutForms(account = loadCustomerAccount()) {
+  if (!account) return;
+  const address = (account.addresses || []).find((item) => item.isDefault) || (account.addresses || [])[0] || {};
+  [$("#checkoutForm"), checkoutPageForm].filter(Boolean).forEach((form) => {
+    if (form.elements.name && account.name && !form.elements.name.value) form.elements.name.value = account.name;
+    if (form.elements.clinic && account.clinic && !form.elements.clinic.value) form.elements.clinic.value = account.clinic;
+    if (form.elements.phone && account.mobile && !form.elements.phone.value) form.elements.phone.value = account.mobile;
+    if (form.elements.gstin && account.gstin && !form.elements.gstin.value) form.elements.gstin.value = account.gstin;
+    if (form.elements.address && address.line1 && !form.elements.address.value) form.elements.address.value = address.line1;
+  });
+}
+
 async function saveBackendOrder(customer) {
   const payload = checkoutPayload(customer);
   return apiJson(ORDERS_API, {
@@ -1609,11 +1625,21 @@ function hydrateCustomerProfileForm(account = {}) {
   customerProfileForm.elements.type.value = ["clinic", "dealer", "retail"].includes(account.type) ? account.type : account.type === "dealer" ? "dealer" : "clinic";
 }
 
+function continueCheckoutAfterLogin() {
+  const next = searchParams().get("next");
+  const shouldContinue = next === "checkout" || sessionStorage.getItem(CHECKOUT_AFTER_LOGIN_KEY) === "checkout";
+  if (!shouldContinue || !customerLoginForm) return;
+  sessionStorage.removeItem(CHECKOUT_AFTER_LOGIN_KEY);
+  saveCart();
+  window.location.href = "checkout.html";
+}
+
 function renderCustomerDashboard(payload) {
   if (!customerDashboard) return;
   latestCustomerDashboard = payload || {};
   const account = latestCustomerDashboard.account || {};
   saveCustomerAccount(account);
+  adoptCartForCustomer(account);
   updateAccountButtons();
   document.body.classList.add("customer-logged-in");
   customerLoginShell?.setAttribute("hidden", "");
@@ -1635,7 +1661,9 @@ function renderCustomerDashboard(payload) {
   renderCustomerTickets(account.tickets || []);
   renderCustomerNotifications(latestCustomerDashboard.notifications || []);
   renderCustomerAdminData(latestCustomerDashboard.adminData || {});
+  renderCart();
   setIcons();
+  continueCheckoutAfterLogin();
 }
 
 function showCustomerLogin() {
@@ -2062,9 +2090,9 @@ function detectCurrentLocation() {
   );
 }
 
-function loadCart() {
+function parseCartStorage(raw) {
   try {
-    const saved = JSON.parse(localStorage.getItem("dentalFactoryCart") || "[]");
+    const saved = JSON.parse(raw || "[]");
     return new Map(
       saved
         .filter((item) => item && item.name && Number(item.qty) > 0)
@@ -2075,13 +2103,73 @@ function loadCart() {
   }
 }
 
+function customerCartOwner(account = loadCustomerAccount()) {
+  return String(account?.id || account?.mobile || account?.email || account?.login || "").trim();
+}
+
+function customerCartKey(account = loadCustomerAccount()) {
+  const owner = customerCartOwner(account);
+  return owner ? `${CUSTOMER_CART_PREFIX}${owner}` : "";
+}
+
+function hasLocalCustomerSession(account = loadCustomerAccount()) {
+  return Boolean(customerCartOwner(account));
+}
+
+function cartItemsJson() {
+  return JSON.stringify(Array.from(cart, ([name, item]) => ({ name, price: item.price, qty: item.qty })));
+}
+
+function loadCart() {
+  const account = loadCustomerAccount();
+  if (hasLocalCustomerSession(account)) {
+    const key = customerCartKey(account);
+    const stored = parseCartStorage(localStorage.getItem(key) || localStorage.getItem(LEGACY_CART_KEY));
+    localStorage.removeItem(LEGACY_CART_KEY);
+    return stored;
+  }
+  localStorage.removeItem(LEGACY_CART_KEY);
+  return parseCartStorage(sessionStorage.getItem(GUEST_CART_KEY));
+}
+
 const cart = loadCart();
 
 function saveCart() {
-  localStorage.setItem(
-    "dentalFactoryCart",
-    JSON.stringify(Array.from(cart, ([name, item]) => ({ name, price: item.price, qty: item.qty })))
-  );
+  const account = loadCustomerAccount();
+  const key = customerCartKey(account);
+  if (key) {
+    localStorage.setItem(key, cartItemsJson());
+    localStorage.removeItem(LEGACY_CART_KEY);
+    sessionStorage.removeItem(GUEST_CART_KEY);
+    return;
+  }
+  sessionStorage.setItem(GUEST_CART_KEY, cartItemsJson());
+  localStorage.removeItem(LEGACY_CART_KEY);
+}
+
+function mergeCartItems(source) {
+  source.forEach((item, name) => {
+    const existing = cart.get(name) || { price: Number(item.price || 0), qty: 0 };
+    existing.price = Number(item.price || existing.price || 0);
+    existing.qty += Number(item.qty || 0);
+    if (existing.qty > 0) cart.set(name, existing);
+  });
+}
+
+function adoptCartForCustomer(account = loadCustomerAccount()) {
+  const key = customerCartKey(account);
+  if (!key) return;
+  const savedCart = parseCartStorage(localStorage.getItem(key));
+  const currentCart = new Map(cart);
+  cart.clear();
+  mergeCartItems(savedCart);
+  mergeCartItems(currentCart);
+  saveCart();
+}
+
+function clearVisibleCart() {
+  cart.clear();
+  saveCart();
 }
 
 function setIcons() {
@@ -2411,7 +2499,32 @@ function hideCart() {
   cartDrawer.setAttribute("aria-hidden", "true");
 }
 
-function openCheckout() {
+function loginUrlForCheckout() {
+  return `login.html?next=checkout`;
+}
+
+function redirectToLoginForCheckout(messageNode) {
+  sessionStorage.setItem(CHECKOUT_AFTER_LOGIN_KEY, "checkout");
+  if (messageNode) messageNode.textContent = "Checkout ke liye customer login required hai.";
+  showToast("Checkout ke liye pehle login karein.");
+  window.location.href = loginUrlForCheckout();
+}
+
+async function ensureCustomerForCheckout(messageNode) {
+  try {
+    const dashboard = await fetchCustomerDashboard();
+    saveCustomerAccount(dashboard.account);
+    adoptCartForCustomer(dashboard.account);
+    updateAccountButtons();
+    renderCart();
+    return true;
+  } catch {
+    redirectToLoginForCheckout(messageNode);
+    return false;
+  }
+}
+
+async function openCheckout() {
   if (cart.size === 0) {
     if (deliveryNote) deliveryNote.textContent = "Add at least one product before checkout.";
     if (cartDrawer) openCart();
@@ -2419,12 +2532,15 @@ function openCheckout() {
     return;
   }
 
+  if (!(await ensureCustomerForCheckout(deliveryNote))) return;
+
   if (!checkoutModal) {
     window.location.href = "checkout.html";
     return;
   }
 
   renderSummary(checkoutSummary);
+  hydrateCheckoutForms();
   if (checkoutMessage) checkoutMessage.textContent = "";
   checkoutModal.classList.add("is-open");
   checkoutModal.setAttribute("aria-hidden", "false");
@@ -3718,6 +3834,7 @@ async function submitCheckoutForm(event, messageNode, summaryNode) {
     if (messageNode) messageNode.textContent = "Add at least one product before placing an order.";
     return;
   }
+  if (!(await ensureCustomerForCheckout(messageNode))) return;
 
   const form = event.currentTarget;
   const submitButton = form.querySelector("button[type='submit']");
@@ -3772,22 +3889,10 @@ async function submitAccountForm(event, messageNode, closeAfterSave = false) {
     return;
   }
 
-  const localAccount = {
-    ...loadCustomerAccount(),
-    ...account,
-    status: loadCustomerAccount()?.status || "Callback pending",
-    updatedAt: new Date().toISOString(),
-  };
-  saveCustomerAccount(localAccount);
-  updateAccountButtons();
-  renderAccountProfile(localAccount);
-
   submitButton.disabled = true;
   if (messageNode) messageNode.textContent = "Saving account request...";
   try {
     const savedAccount = await saveBackendAccount(account);
-    saveCustomerAccount(savedAccount);
-    updateAccountButtons();
     renderAccountProfile(savedAccount);
     if (messageNode) messageNode.textContent = `${savedAccount.clinic} account request saved. We will verify by phone.`;
     form.reset();
@@ -3993,6 +4098,7 @@ customerLogoutButton?.addEventListener("click", async () => {
     await logoutCustomer(false);
   } catch {}
   localStorage.removeItem(CUSTOMER_ACCOUNT_KEY);
+  clearVisibleCart();
   updateAccountButtons();
   if (customerOtpForm) customerOtpForm.hidden = true;
   showCustomerLogin();
@@ -4003,6 +4109,7 @@ customerLogoutAllButton?.addEventListener("click", async () => {
     await logoutCustomer(true);
   } catch {}
   localStorage.removeItem(CUSTOMER_ACCOUNT_KEY);
+  clearVisibleCart();
   updateAccountButtons();
   if (customerOtpForm) customerOtpForm.hidden = true;
   showCustomerLogin();
@@ -4065,6 +4172,31 @@ async function initCustomerPage() {
     renderCustomerDashboard(dashboard);
   } catch {
     showCustomerLogin();
+  }
+}
+
+async function syncCustomerSessionForCurrentPage() {
+  if (customerLoginForm || customerDashboard) return;
+  const hadLocalAccount = hasLocalCustomerSession();
+  const checkoutNeedsLogin = Boolean(checkoutPageForm && cart.size > 0);
+  if (!hadLocalAccount && !checkoutNeedsLogin) return;
+  try {
+    const dashboard = await fetchCustomerDashboard();
+    saveCustomerAccount(dashboard.account);
+    adoptCartForCustomer(dashboard.account);
+    updateAccountButtons();
+    hydrateCheckoutForms(dashboard.account);
+    renderCart();
+  } catch {
+    if (hadLocalAccount) {
+      localStorage.removeItem(CUSTOMER_ACCOUNT_KEY);
+      const guestCart = parseCartStorage(sessionStorage.getItem(GUEST_CART_KEY));
+      cart.clear();
+      mergeCartItems(guestCart);
+      updateAccountButtons();
+      renderCart();
+    }
+    if (checkoutNeedsLogin) redirectToLoginForCheckout(checkoutPageMessage);
   }
 }
 
@@ -4404,4 +4536,5 @@ syncProductsFromBackend().then(() => {
 });
 initAdminAuth();
 initCustomerPage();
+syncCustomerSessionForCurrentPage();
 autoTrackInitialOrder();

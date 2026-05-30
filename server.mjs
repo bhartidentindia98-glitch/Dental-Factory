@@ -1498,6 +1498,8 @@ async function handleApi(req, res, reqUrl) {
 
   if (reqUrl.pathname === "/api/payments/razorpay/order" && req.method === "POST") {
     if (!checkRateLimit(req, res, "payment-order", 20, 10 * 60 * 1000)) return;
+    const currentAccount = await requireCustomer(req, res);
+    if (!currentAccount) return;
     if (!razorpayConfigured()) {
       sendJson(res, 503, { error: "Razorpay is not configured. Add RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET in Render Environment." });
       return;
@@ -1545,6 +1547,8 @@ async function handleApi(req, res, reqUrl) {
 
   if (reqUrl.pathname === "/api/payments/razorpay/verify" && req.method === "POST") {
     if (!checkRateLimit(req, res, "payment-verify", 30, 10 * 60 * 1000)) return;
+    const currentAccount = await requireCustomer(req, res);
+    if (!currentAccount) return;
     if (!razorpayConfigured()) {
       sendJson(res, 503, { error: "Razorpay is not configured. Add RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET in Render Environment." });
       return;
@@ -1845,6 +1849,8 @@ async function handleApi(req, res, reqUrl) {
 
   if (reqUrl.pathname === "/api/orders" && req.method === "POST") {
     if (!checkRateLimit(req, res, "checkout-order", 30, 10 * 60 * 1000)) return;
+    const currentAccount = await requireCustomer(req, res);
+    if (!currentAccount) return;
     const body = await readRequestJson(req);
     const orders = await readJson(ordersFile, []);
     const payload = await checkoutPayloadFromBody(body);
@@ -2113,12 +2119,32 @@ async function handleApi(req, res, reqUrl) {
       sendJson(res, 404, { error: "Customer account not found" }, { "Set-Cookie": clearCustomerCookie() });
       return;
     }
+    const nextName = cleanText(body.name ?? accounts[index].name, 140);
+    const nextClinic = cleanText(body.clinic ?? body.business ?? body.company ?? accounts[index].clinic, 160);
+    const nextMobile = normalizePhone(body.mobile ?? body.phone ?? accounts[index].mobile).slice(-10);
+    const nextEmail = normalizeEmail(body.email ?? accounts[index].email);
+    if (!nextName) {
+      sendJson(res, 400, { error: "Full name is required." });
+      return;
+    }
+    if (!nextClinic) {
+      sendJson(res, 400, { error: "Business name is required." });
+      return;
+    }
+    if (nextMobile.length !== 10) {
+      sendJson(res, 400, { error: "Enter a valid 10 digit mobile number." });
+      return;
+    }
+    if (nextEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(nextEmail)) {
+      sendJson(res, 400, { error: "Enter a valid email address." });
+      return;
+    }
     const next = normalizeAccount({
       ...accounts[index],
-      name: body.name ?? accounts[index].name,
-      clinic: body.clinic ?? accounts[index].clinic,
-      email: body.email ?? accounts[index].email,
-      mobile: body.mobile ?? body.phone ?? accounts[index].mobile,
+      name: nextName,
+      clinic: nextClinic,
+      email: nextEmail,
+      mobile: nextMobile,
       gstin: body.gstin ?? accounts[index].gstin,
       type: body.type ?? body.customerType ?? accounts[index].type,
       updatedAt: new Date().toISOString(),

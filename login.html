@@ -84,12 +84,12 @@
           <section class="account-pane is-active" data-account-pane="profile">
             <div class="account-pane-head"><h1>Profile <span>33% Complete</span></h1><button class="icon-only" type="button" aria-label="Edit profile"><i data-lucide="pencil"></i></button></div>
             <form class="account-profile-form" id="customerProfileForm">
-              <label>Full Name<input name="name" placeholder="Full name" /></label>
+              <label>Full Name<input name="name" required autocomplete="name" placeholder="Full name" /></label>
               <label>Type<select name="type"><option value="clinic">Clinic</option><option value="dealer">Dealer</option><option value="retail">Retail</option></select></label>
-              <label>Business Name<input name="clinic" placeholder="Business name" /></label>
-              <label>Mobile Number<input name="mobile" inputmode="tel" placeholder="Mobile Number" /></label>
+              <label>Business Name<input name="clinic" required autocomplete="organization" placeholder="Business name" /></label>
+              <label>Mobile Number<input name="mobile" required inputmode="tel" pattern="[0-9]{10}" maxlength="10" autocomplete="tel" title="Enter a valid 10 digit mobile number" placeholder="Mobile Number" /></label>
               <label>WhatsApp Number<input name="whatsapp" inputmode="tel" placeholder="WhatsApp Number" /></label>
-              <label class="full-field">Email Address<input name="email" type="email" placeholder="email@example.com" /></label>
+              <label class="full-field">Email Address<input name="email" type="email" autocomplete="email" placeholder="email@example.com" /></label>
               <label class="full-field">GSTIN<input name="gstin" maxlength="15" placeholder="GST details for B2B customer" /></label>
               <button class="checkout-button" type="submit">Save profile</button>
               <p class="checkout-message" id="customerProfileMessage" role="status"></p>

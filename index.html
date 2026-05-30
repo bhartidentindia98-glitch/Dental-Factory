@@ -380,7 +380,7 @@
     </aside>
 
     <aside class="checkout-modal" id="checkoutModal" aria-label="Checkout" aria-hidden="true">
-      <form class="checkout-panel" id="checkoutForm">
+      <form class="checkout-panel" id="checkoutForm" autocomplete="off">
         <div class="cart-head">
           <h2>Checkout</h2>
           <button class="icon-only" id="closeCheckout" type="button" aria-label="Close checkout">
@@ -390,11 +390,11 @@
         <div class="checkout-summary" id="checkoutSummary"></div>
         <label>
           Full name
-          <input name="name" required placeholder="Dr. Praveen Sharma" />
+          <input name="name" required autocomplete="off" placeholder="Full name" />
         </label>
         <label>
           Phone number
-          <input name="phone" required inputmode="tel" placeholder="10 digit mobile number" />
+          <input name="phone" required inputmode="tel" pattern="[0-9]{10}" maxlength="10" autocomplete="off" placeholder="10 digit mobile number" />
         </label>
         <label>
           Clinic address
