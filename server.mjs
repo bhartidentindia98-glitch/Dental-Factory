@@ -102,7 +102,7 @@ const securityHeaders = {
   "X-Frame-Options": "DENY",
   "Referrer-Policy": "strict-origin-when-cross-origin",
   "Permissions-Policy": "camera=(), microphone=(), geolocation=(self), payment=(self)",
-  "Cross-Origin-Opener-Policy": "same-origin",
+  "Cross-Origin-Opener-Policy": "same-origin-allow-popups",
   "Content-Security-Policy": [
     "default-src 'self'",
     "base-uri 'self'",
