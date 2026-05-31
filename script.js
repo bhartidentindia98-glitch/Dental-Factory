@@ -7,6 +7,7 @@ const slugifyProduct = (value) =>
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
+const preferredProductSlug = (value) => slugifyProduct(value).replace(/\bglass-lonomer\b/g, "glass-ionomer").replace(/\blonomer\b/g, "ionomer");
 
 const productGrid = $("#productGrid");
 let productCards = $$(".product-card");
@@ -1873,15 +1874,24 @@ function allCatalogProducts() {
 function getCatalogProduct(identifier) {
   const normalized = String(identifier || "").trim();
   const slug = slugifyProduct(normalized);
+  const preferredSlug = preferredProductSlug(normalized);
   return (
-    allCatalogProducts().find((product) => product.name === normalized || product.id === normalized || slugifyProduct(product.name) === slug || product.id === slug) ||
+    allCatalogProducts().find(
+      (product) =>
+        product.name === normalized ||
+        product.id === normalized ||
+        slugifyProduct(product.name) === slug ||
+        product.id === slug ||
+        preferredProductSlug(product.name) === preferredSlug ||
+        preferredProductSlug(product.id) === preferredSlug
+    ) ||
     {}
   );
 }
 
 function productDetailUrl(identifier) {
   const product = getCatalogProduct(identifier);
-  const key = product.id || slugifyProduct(product.name || identifier);
+  const key = preferredProductSlug(product.name || product.id || identifier);
   return `/products/${encodeURIComponent(key)}`;
 }
 
@@ -2918,16 +2928,18 @@ async function syncProductsFromBackend() {
 
 function productCardTemplate(product) {
   const discount = productDiscount(product);
+  const detailUrl = productDetailUrl(product.name || product.id);
   return `
     <img src="${escapeHtml(product.image)}" alt="${escapeHtml(product.name)}" />
     <div class="product-meta">
-      <h3>${escapeHtml(product.name)}</h3>
+      <h3><a class="seo-title-link" href="${escapeHtml(detailUrl)}">${escapeHtml(product.name)}</a></h3>
       <div class="rating"><i data-lucide="star"></i> ${escapeHtml(product.rating)} <span>${escapeHtml(product.stock)} in stock</span></div>
       <div class="price-row">
         <strong>${formatMoney(product.price)}</strong>
         ${Number(product.mrp || 0) > Number(product.price || 0) ? `<small>${formatMoney(product.mrp)}</small>` : ""}
         ${discount ? `<span>${escapeHtml(discount)}</span>` : ""}
       </div>
+      <a class="detail-button" href="${escapeHtml(detailUrl)}">View details</a>
       <button class="add-cart" type="button" data-product="${escapeHtml(product.name)}" data-price="${escapeHtml(product.price)}">
         <i data-lucide="shopping-bag"></i> Add
       </button>
@@ -4508,7 +4520,9 @@ resetAdminBrandForm();
 resetAdminProductForm();
 renderAdsOnStorefront();
 renderBrandsOnStorefront([]);
-renderAdminProductsOnStorefront([]);
+if (!productGrid?.querySelector(".product-card")) {
+  renderAdminProductsOnStorefront([]);
+}
 injectDetailButtons();
 renderProductDetailPage();
 ensureCategoryMenus();

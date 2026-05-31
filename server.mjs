@@ -591,13 +591,19 @@ function seoDescription(value, fallback) {
   return text.length > 155 ? `${text.slice(0, 152).trim()}...` : text;
 }
 
+function preferredSeoSlug(value) {
+  return slugify(value)
+    .replace(/\bglass-lonomer\b/g, "glass-ionomer")
+    .replace(/\blonomer\b/g, "ionomer");
+}
+
 function productSeoEntries(products) {
   const usedSlugs = new Map();
   return asArray(products)
     .map(normalizeProduct)
     .filter((product) => product.name)
     .map((product) => {
-      const baseSlug = slugify(product.name) || product.id || "product";
+      const baseSlug = preferredSeoSlug(product.name) || preferredSeoSlug(product.id) || "product";
       const count = (usedSlugs.get(baseSlug) || 0) + 1;
       usedSlugs.set(baseSlug, count);
       const slug = count === 1 ? baseSlug : `${baseSlug}-${count}`;
@@ -608,7 +614,9 @@ function productSeoEntries(products) {
 function findProductForSeoSlug(products, slug) {
   const target = slugify(slug);
   return (
-    productSeoEntries(products).find((product) => product.seoSlug === target || product.id === target || slugify(product.name) === target) || null
+    productSeoEntries(products).find(
+      (product) => product.seoSlug === target || product.id === target || slugify(product.name) === target || preferredSeoSlug(product.name) === target
+    ) || null
   );
 }
 
@@ -658,22 +666,315 @@ function breadcrumbSchema(items) {
 }
 
 function productSchema(product, canonical) {
+  const images = Array.from(new Set(rawImageList(product.images).concat(product.image).map((image) => String(image || "").trim()).filter(Boolean)));
   return `<script type="application/ld+json">${JSON.stringify({
     "@context": "https://schema.org",
     "@type": "Product",
     name: product.name,
     brand: product.brand ? { "@type": "Brand", name: product.brand } : undefined,
-    image: product.image ? absoluteSiteUrl(product.image) : undefined,
+    category: product.category,
+    image: images.length ? images.map((image) => absoluteSiteUrl(image)) : undefined,
     description: seoDescription(product.description, `${product.name} from Dental Factory.`),
     sku: product.id,
+    mpn: product.hsn || product.id,
     offers: {
       "@type": "Offer",
       priceCurrency: "INR",
       price: String(product.price || 0),
       availability: Number(product.stock || 0) > 0 ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
+      itemCondition: "https://schema.org/NewCondition",
+      seller: { "@type": "Organization", name: "Dental Factory" },
       url: canonical,
     },
   })}</script>`;
+}
+
+function formatRupees(value) {
+  return `Rs. ${Number(value || 0).toLocaleString("en-IN")}`;
+}
+
+function productDiscountText(product) {
+  const mrp = Number(product.mrp || 0);
+  const price = Number(product.price || 0);
+  if (!mrp || !price || mrp <= price) return "";
+  return `${Math.round(((mrp - price) / mrp) * 100)}% off`;
+}
+
+function productCategoryRoute(product) {
+  return categoryRouteForValue(product.category) || categoryRoutes.find((category) => productMatchesCategory(product, category)) || null;
+}
+
+function categoryTerms(category) {
+  const map = {
+    equipment: ["equipment", "equipments", "chair", "unit", "sensor", "camera", "compressor", "autoclave"],
+    "rotary-instruments": ["rotary", "handpiece", "airotor", "airrotor", "bur", "bearing", "contra-angle"],
+    restoratives: ["restorative", "restoratives", "composite", "cement", "gic", "ionomer", "lonomer", "bond", "etch", "flowable", "restoration"],
+    endodontics: ["endodontic", "endodontics", "endo", "root", "canal", "file", "apex", "gutta", "obturation", "irrigation"],
+    orthodontics: ["orthodontic", "orthodontics", "ortho", "bracket", "wire", "retainer", "aligner", "bonding", "elastomeric"],
+    sterilization: ["sterilization", "sterilisation", "sterile", "autoclave", "pouch", "disinfect", "infection"],
+    implants: ["implant", "implants", "prosthetic", "abutment", "driver", "screw", "torque"],
+  };
+  return Array.from(new Set([category.filter, category.slug, category.name, ...(map[category.slug] || [])].map(slugify).filter(Boolean)));
+}
+
+function productMatchesCategory(product, category) {
+  const haystack = slugify(`${product.category || ""} ${product.name || ""} ${product.description || ""}`);
+  return categoryTerms(category).some((term) => haystack.includes(term));
+}
+
+function categoryProducts(products, category) {
+  return asArray(products).filter((product) => productMatchesCategory(product, category));
+}
+
+function productCardHtml(product, products) {
+  const href = productSeoUrl(product, products);
+  const discount = productDiscountText(product);
+  const category = productCategoryRoute(product);
+  return `
+            <article class="product-card" data-product-id="${escapeHtml(product.id)}" data-name="${escapeHtml(product.name)}" data-brand="${escapeHtml(
+              product.brand
+            )}" data-category="${escapeHtml(`${product.category} deals best`)}" data-price="${escapeHtml(product.price)}" data-rating="${escapeHtml(
+    product.rating
+  )}">
+              <img src="${escapeHtml(product.image)}" alt="${escapeHtml(product.name)}" />
+              <div class="product-meta">
+                <h3><a class="seo-title-link" href="${escapeHtml(href)}">${escapeHtml(product.name)}</a></h3>
+                <div class="rating"><span aria-hidden="true">★</span> ${escapeHtml(product.rating)} <span>${escapeHtml(product.stock)} in stock</span></div>
+                <div class="price-row">
+                  <strong>${escapeHtml(formatRupees(product.price))}</strong>
+                  ${Number(product.mrp || 0) > Number(product.price || 0) ? `<small>${escapeHtml(formatRupees(product.mrp))}</small>` : ""}
+                  ${discount ? `<span>${escapeHtml(discount)}</span>` : ""}
+                </div>
+                <p>${escapeHtml(seoDescription(product.description, `${product.name} by ${product.brand}.`))}</p>
+                <a class="detail-button" href="${escapeHtml(href)}">View details</a>
+                ${category ? `<a class="seo-muted-link" href="/${escapeHtml(category.slug)}">${escapeHtml(category.title)}</a>` : ""}
+              </div>
+            </article>`;
+}
+
+function injectProductGrid(html, productsToShow, allProducts) {
+  const cards = asArray(productsToShow)
+    .slice(0, 48)
+    .map((product) => productCardHtml(product, allProducts))
+    .join("\n");
+  return String(html || "").replace(/(<div class="product-grid(?: [^"]*)?" id="productGrid">\s*)[\s\S]*?(\s*<\/div>)/i, `$1\n${cards}\n          $2`);
+}
+
+function productSeoText(product) {
+  const category = product.category || "dental supplies";
+  const brand = product.brand || "Dental Factory";
+  const hsn = product.hsn || defaultHsnCode;
+  const unit = product.unit || defaultUnit;
+  const gst = Number(product.gstRate ?? defaultGstRate);
+  const stockLine = Number(product.stock || 0) > 0 ? `${product.stock} units are currently listed for ordering.` : "Stock can be confirmed before dispatch.";
+  const shortDescription = product.description || `${product.name} is a clinic-ready dental product available from Dental Factory.`;
+  return {
+    overview: `${shortDescription} This ${category.toLowerCase()} product is listed with transparent pricing, GST billing details, and dispatch support for dental clinics, hospitals, dealers, and dental students who need dependable procurement from one place. The page includes the current selling price, MRP, available discount, brand name, stock position, HSN code, GST rate, and unit information so the buyer can review the product before adding it to cart.`,
+    features: `${product.name} is supplied under the ${brand} brand and is suitable for regular clinic purchasing workflows where clear product identification matters. The listing is built for comparison with similar dental materials, instruments, equipment, or consumables in the same category. ${stockLine} Dental Factory keeps the product information crawlable and visible so customers and search engines can read the product details without depending only on scripts.`,
+    benefits: `Key benefits include quick product discovery, price visibility, invoice-ready tax information, and a direct product page that can be shared with staff or purchasing teams. When the item is in stock, clinics can add it to cart and continue to checkout after customer login. If a quantity, shade, model, or compatibility detail needs confirmation, the product page still gives enough context for a purchase enquiry or support callback.`,
+    specs: `Specifications: brand ${brand}; category ${category}; HSN ${hsn}; GST ${gst}%; unit ${unit}; listed selling price ${formatRupees(product.price)}${
+      Number(product.mrp || 0) > Number(product.price || 0) ? `; MRP ${formatRupees(product.mrp)}` : ""
+    }; delivery note ${product.delivery || "Dispatch estimate available after pincode."}.`,
+    usage: `Usage information: review the product image, description, brand, price, and stock before ordering. Dental products should be selected according to the clinic requirement, applicable technique, and manufacturer instructions. For materials and clinical-use items, confirm compatibility, expiry-sensitive details, storage needs, and quantity before checkout or bulk enquiry.`,
+  };
+}
+
+function productSeoDetailSection(product) {
+  const text = productSeoText(product);
+  return `
+      <section class="section-block seo-product-content">
+        <div class="section-heading">
+          <div>
+            <span class="eyebrow">Product details</span>
+            <h2>${escapeHtml(product.name)} details, features, and specifications</h2>
+          </div>
+        </div>
+        <div class="info-tabs">
+          <article>
+            <h3>Description</h3>
+            <p>${escapeHtml(text.overview)}</p>
+          </article>
+          <article>
+            <h3>Features</h3>
+            <p>${escapeHtml(text.features)}</p>
+          </article>
+          <article>
+            <h3>Benefits</h3>
+            <p>${escapeHtml(text.benefits)}</p>
+          </article>
+          <article>
+            <h3>Specifications</h3>
+            <p>${escapeHtml(text.specs)}</p>
+          </article>
+          <article>
+            <h3>Brand details</h3>
+            <p>${escapeHtml(`${product.brand || "Dental Factory"} products are listed with product-specific pricing, stock, and tax details for dental procurement.`)}</p>
+          </article>
+          <article>
+            <h3>Usage information</h3>
+            <p>${escapeHtml(text.usage)}</p>
+          </article>
+        </div>
+      </section>`;
+}
+
+function replaceProductDetailSource(html, product, products) {
+  const discount = productDiscountText(product);
+  const images = Array.from(new Set(rawImageList(product.images).concat(product.image).map((image) => String(image || "").trim()).filter(Boolean)));
+  const thumbs = images
+    .slice(0, 6)
+    .map(
+      (image, index) =>
+        `<button class="${index === 0 ? "is-active" : ""}" type="button" aria-label="${index === 0 ? "Main product view" : `Product view ${index + 1}`}"><img src="${escapeHtml(
+          image
+        )}" alt="" /></button>`
+    )
+    .join("\n            ");
+  const specs = [
+    ["Brand", product.brand || "Dental Factory"],
+    ["Category", product.category || "Dental product"],
+    ["HSN", product.hsn || defaultHsnCode],
+    ["GST", `${Number(product.gstRate ?? defaultGstRate)}%`],
+    ["Unit", product.unit || defaultUnit],
+    ["Stock", Number(product.stock || 0) > 0 ? `${product.stock} in stock` : "Confirm availability"],
+  ]
+    .map(([label, value]) => `<div><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`)
+    .join("\n            ");
+
+  let nextHtml = String(html || "")
+    .replace(/(<span id="detailBreadcrumbCurrent">)[\s\S]*?(<\/span>)/i, `$1${escapeHtml(product.name)}$2`)
+    .replace(/<img id="pageDetailImage" data-gallery-main [^>]*\/>/i, `<img id="pageDetailImage" data-gallery-main src="${escapeHtml(product.image)}" alt="${escapeHtml(product.name)}" />`)
+    .replace(/<div class="thumbnail-row" id="pageDetailThumbs" aria-label="Product gallery">[\s\S]*?<\/div>\s*<\/div>/i, `<div class="thumbnail-row" id="pageDetailThumbs" aria-label="Product gallery">
+            ${thumbs}
+          </div>
+        </div>`)
+    .replace(/(<h1 id="pageDetailTitle">)[\s\S]*?(<\/h1>)/i, `$1${escapeHtml(product.name)}$2`)
+    .replace(/(<p id="pageDetailDescription">)[\s\S]*?(<\/p>)/i, `$1${escapeHtml(product.description || "Factory-direct dental product.")}$2`)
+    .replace(/<div class="detail-rating" id="pageDetailRating">[\s\S]*?<\/div>/i, `<div class="detail-rating" id="pageDetailRating"><i data-lucide="star"></i> ${escapeHtml(
+      product.rating || "4.5"
+    )} <span>${escapeHtml(Number(product.stock || 0) > 0 ? `${product.stock} in stock` : product.brand || "")}</span></div>`)
+    .replace(/<div class="detail-price">[\s\S]*?<\/div>/i, `<div class="detail-price"><strong id="pageDetailPrice">${escapeHtml(formatRupees(product.price))}</strong><small id="pageDetailMrp">${
+      Number(product.mrp || 0) > Number(product.price || 0) ? escapeHtml(formatRupees(product.mrp)) : ""
+    }</small><span id="pageDetailDiscount">${escapeHtml(discount)}</span></div>`)
+    .replace(/(<b id="pageDetailDelivery">)[\s\S]*?(<\/b>)/i, `$1${escapeHtml(product.delivery || "Dispatch estimate available after pincode.")}$2`)
+    .replace(
+      /<button class="add-cart detail-add-button" id="pageDetailAddCart" type="button" data-product="[^"]*" data-price="[^"]*">ADD<\/button>/i,
+      `<button class="add-cart detail-add-button" id="pageDetailAddCart" type="button" data-product="${escapeHtml(product.name)}" data-price="${escapeHtml(product.price)}">ADD</button>`
+    )
+    .replace(/<div class="detail-specs" id="pageDetailSpecs">[\s\S]*?<\/div>\s*<\/article>/i, `<div class="detail-specs" id="pageDetailSpecs">
+            ${specs}
+          </div>
+        </article>`)
+    .replace(/<section class="section-block">\s*<div class="section-heading">[\s\S]*?<div class="info-tabs">[\s\S]*?<\/div>\s*<\/section>/i, productSeoDetailSection(product));
+
+  const related = products
+    .filter((item) => item.id !== product.id)
+    .sort((a, b) => {
+      const relatedCategory = productCategoryRoute(product) || { filter: product.category, slug: slugify(product.category), name: product.category };
+      const sameCategory = Number(productMatchesCategory(b, relatedCategory)) - Number(productMatchesCategory(a, relatedCategory));
+      return sameCategory || String(a.name).localeCompare(String(b.name));
+    })
+    .slice(0, 8);
+  nextHtml = injectProductGrid(nextHtml, related.length ? related : products.filter((item) => item.id !== product.id), products);
+  return nextHtml;
+}
+
+function categorySeoSection(category, products) {
+  const shownProducts = categoryProducts(products, category);
+  const productLinks = shownProducts
+    .slice(0, 18)
+    .map((product) => `<a href="${escapeHtml(productSeoUrl(product, products))}">${escapeHtml(product.name)}</a>`)
+    .join("");
+  return `
+      <section class="section-block seo-category-content">
+        <div class="section-heading">
+          <div>
+            <span class="eyebrow">Category guide</span>
+            <h2>${escapeHtml(category.title)} for dental clinics</h2>
+          </div>
+        </div>
+        <p>${escapeHtml(
+          `${category.title} products at Dental Factory include clinic-ready dental materials, instruments, equipment, and consumables selected for everyday purchasing. This category page links directly to individual product pages so Google and customers can discover each item from a crawlable category route. Review brand, MRP, selling price, stock, GST details, and delivery notes before checkout.`
+        )}</p>
+        <div class="seo-link-list">${productLinks}</div>
+      </section>`;
+}
+
+function homepageSeoLinks(products) {
+  const categoryBlocks = categoryRoutes
+    .map((category) => {
+      const links = categoryProducts(products, category)
+        .slice(0, 6)
+        .map((product) => `<a href="${escapeHtml(productSeoUrl(product, products))}">${escapeHtml(product.name)}</a>`)
+        .join("");
+      return `<article><h3><a href="/${escapeHtml(category.slug)}">${escapeHtml(category.title)}</a></h3><div>${links}</div></article>`;
+    })
+    .join("");
+  return `
+      <section class="section-block seo-home-links" aria-label="Crawlable category and product links">
+        <div class="section-heading">
+          <div>
+            <span class="eyebrow">Shop by dental category</span>
+            <h2>Dental products, categories, and brand links</h2>
+          </div>
+          <a href="products.html">View all products</a>
+        </div>
+        <div class="seo-category-grid">${categoryBlocks}</div>
+      </section>`;
+}
+
+function brandSeoLinks(brands, products) {
+  const visibleBrands = visibleStoredBrands(brands);
+  const brandCards = visibleBrands
+    .map((brand) => {
+      const matchingProducts = products.filter((product) => slugify(product.brand) === slugify(brand.name)).slice(0, 5);
+      const productLinks = matchingProducts.map((product) => `<a href="${escapeHtml(productSeoUrl(product, products))}">${escapeHtml(product.name)}</a>`).join("");
+      return `<article><h3><a href="products.html?brand=${encodeURIComponent(brand.name)}">${escapeHtml(brand.name)}</a></h3><div>${productLinks}</div></article>`;
+    })
+    .join("");
+  return `
+      <section class="section-block seo-brand-links" aria-label="Crawlable brand and product links">
+        <div class="section-heading">
+          <div>
+            <span class="eyebrow">Brand links</span>
+            <h2>Shop products by saved brands</h2>
+          </div>
+        </div>
+        <div class="seo-category-grid">${brandCards}</div>
+      </section>`;
+}
+
+function enhanceProductsHtml(html, products, category = null) {
+  const shownProducts = category ? categoryProducts(products, category) : products;
+  let nextHtml = injectProductGrid(html, shownProducts.length ? shownProducts : products, products);
+  if (category) {
+    nextHtml = nextHtml.replace("</main>", `${categorySeoSection(category, products)}\n    </main>`);
+  }
+  return nextHtml;
+}
+
+async function serveSeoStaticPage(res, requestPath) {
+  const products = await readCatalogProducts();
+  const fileName = requestPath === "/" ? "index.html" : requestPath.replace(/^\/+/, "");
+  let html = await fs.readFile(path.join(rootDir, fileName), "utf8");
+  html = stripRetiredAnnouncementHtml(html);
+  if (fileName === "products.html" || fileName === "index.html") {
+    html = injectProductGrid(html, products, products);
+  }
+  if (fileName === "index.html") {
+    html = html.replace("</main>", `${homepageSeoLinks(products)}\n    </main>`);
+  }
+  if (fileName === "brands.html") {
+    html = html.replace("</main>", `${brandSeoLinks(await readJson(brandsFile, []), products)}\n    </main>`);
+  }
+  res.writeHead(
+    200,
+    withSecurityHeaders({
+      "Content-Type": "text/html; charset=utf-8",
+      "Cache-Control": "no-store, max-age=0",
+    })
+  );
+  res.end(html);
 }
 
 function normalizePhone(value) {
@@ -2419,6 +2720,7 @@ async function serveProductSeoPage(res, slug) {
     description,
     canonical,
   });
+  html = replaceProductDetailSource(html, product, products);
   html = injectHeadTags(
     html,
     `    <base href="/" />
@@ -2440,10 +2742,12 @@ async function serveProductSeoPage(res, slug) {
 }
 
 async function serveCategorySeoPage(res, category) {
+  const products = await readCatalogProducts();
   const canonical = absoluteSiteUrl(`/${category.slug}`);
   const description = `Shop ${category.title.toLowerCase()} at Dental Factory with clinic-ready products, GST billing, and dispatch support.`;
   let html = await fs.readFile(path.join(rootDir, "products.html"), "utf8");
   html = stripRetiredAnnouncementHtml(html);
+  html = enhanceProductsHtml(html, products, category);
   html = replaceTitleAndMeta(html, {
     title: `${category.title} - Dental Factory`,
     description,
@@ -2522,6 +2826,10 @@ async function handleStatic(req, res, reqUrl) {
   if (await handleLegacyRedirects(res, reqUrl)) return;
   if (requestPath.startsWith(`${uploadPublicPrefix}/`)) {
     await serveUploadedAsset(res, requestPath);
+    return;
+  }
+  if (["/index.html", "/products.html", "/brands.html"].includes(requestPath)) {
+    await serveSeoStaticPage(res, requestPath);
     return;
   }
   const productRouteMatch = requestPath.match(/^\/products\/([^/]+)\/?$/);
