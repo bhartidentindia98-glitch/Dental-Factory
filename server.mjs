@@ -7,7 +7,9 @@ import { fileURLToPath } from "node:url";
 const rootDir = path.dirname(fileURLToPath(import.meta.url));
 const port = Number(process.env.PORT || 5173);
 const host = process.env.HOST || "0.0.0.0";
-const siteUrl = String(process.env.SITE_URL || "https://bhartidentindia.com").replace(/\/+$/, "");
+const siteUrl = String(process.env.PRIMARY_SITE_URL || "https://dentalfactory.in").replace(/\/+$/, "");
+const canonicalHost = new URL(siteUrl).host.toLowerCase();
+const canonicalRedirectHosts = new Set(["bhartidentindia.com", "www.bhartidentindia.com", "www.dentalfactory.in"]);
 const isProduction = process.env.NODE_ENV === "production";
 const localAdminPassword = "DentalFactory@2026";
 const adminPassword = process.env.ADMIN_PASSWORD || (isProduction ? "" : localAdminPassword);
@@ -634,6 +636,26 @@ function categoryRouteForValue(value) {
 function redirectPermanent(res, location) {
   res.writeHead(301, withSecurityHeaders({ Location: location, "Cache-Control": "no-store, max-age=0" }));
   res.end();
+}
+
+function requestHost(req) {
+  const forwardedHost = String(req.headers["x-forwarded-host"] || "")
+    .split(",")[0]
+    .trim();
+  return String(forwardedHost || req.headers.host || "")
+    .trim()
+    .replace(/:\d+$/, "")
+    .toLowerCase();
+}
+
+function shouldRedirectCanonicalHost(req) {
+  if (!isProduction) return false;
+  const hostName = requestHost(req);
+  return Boolean(hostName && hostName !== canonicalHost && canonicalRedirectHosts.has(hostName));
+}
+
+function redirectCanonicalHost(req, res, reqUrl) {
+  redirectPermanent(res, `${siteUrl}${reqUrl.pathname}${reqUrl.search || ""}`);
 }
 
 function injectHeadTags(html, tags) {
@@ -2894,6 +2916,10 @@ const server = http.createServer(async (req, res) => {
     }
 
     const reqUrl = new URL(req.url || "/", `http://127.0.0.1:${port}`);
+    if (shouldRedirectCanonicalHost(req)) {
+      redirectCanonicalHost(req, res, reqUrl);
+      return;
+    }
     if (reqUrl.pathname.startsWith("/api/")) {
       if (!checkRateLimit(req, res, "api-global", 300, 60 * 1000)) return;
       await handleApi(req, res, reqUrl);

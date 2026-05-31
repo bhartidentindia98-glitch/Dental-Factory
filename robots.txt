@@ -6,4 +6,4 @@ Disallow: /checkout.html
 Disallow: /login.html
 Disallow: /track-order.html
 
-Sitemap: https://bhartidentindia.com/sitemap.xml
+Sitemap: https://dentalfactory.in/sitemap.xml
