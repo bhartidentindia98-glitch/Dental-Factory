@@ -682,27 +682,28 @@ main {
   background: #fff;
 }
 
-.assurance-strip i {
-  grid-row: span 2;
+.assurance-strip i,
+.assurance-strip > div > svg {
+  grid-column: 1;
+  grid-row: 1 / span 2;
   display: grid;
   place-items: center;
   width: 42px;
   height: 42px;
+  padding: 10px;
   border-radius: var(--radius);
   color: #fff;
   background: var(--sea);
-}
-
-.assurance-strip svg {
-  width: 21px;
-  height: 21px;
+  box-sizing: border-box;
 }
 
 .assurance-strip strong {
+  grid-column: 2;
   align-self: end;
 }
 
 .assurance-strip span {
+  grid-column: 2;
   color: var(--muted);
   line-height: 1.4;
 }
