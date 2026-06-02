@@ -1973,7 +1973,8 @@ async function handleApi(req, res, reqUrl) {
       return;
     }
     const body = await readRequestJson(req, 16 * 1024);
-    if (!timingSafeStringEqual(body.username || "", adminUsername)) {
+    const submittedUsername = String(body.username || "").trim();
+    if (!timingSafeStringEqual(submittedUsername, adminUsername)) {
       sendJson(res, 401, { error: "Wrong admin ID or password" }, { "Set-Cookie": clearAdminCookie() });
       return;
     }
