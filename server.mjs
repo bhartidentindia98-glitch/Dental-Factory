@@ -306,7 +306,7 @@ const defaultAds = [
     title: "New clinic setup support",
     message: "Send your equipment list and get callback support for chairs, autoclaves, handpieces, and consumables.",
     cta: "Setup a clinic",
-    link: "index.html#clinic-setup",
+    link: "/#clinic-setup",
     placement: "home-banner",
     active: true,
     priority: 2,
@@ -2686,6 +2686,11 @@ async function readCatalogProducts() {
 
 async function handleLegacyRedirects(res, reqUrl) {
   const requestPath = reqUrl.pathname;
+  if (requestPath === "/index.html") {
+    redirectPermanent(res, absoluteSiteUrl("/"));
+    return true;
+  }
+
   if (requestPath === "/product-detail.html") {
     const identifier = reqUrl.searchParams.get("product") || reqUrl.searchParams.get("id") || reqUrl.searchParams.get("name");
     if (identifier) {

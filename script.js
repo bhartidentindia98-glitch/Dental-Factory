@@ -270,7 +270,7 @@ const defaultAds = [
     title: "New clinic setup support",
     message: "Send your equipment list and get callback support for chairs, autoclaves, handpieces, and consumables.",
     cta: "Setup a clinic",
-    link: "index.html#clinic-setup",
+    link: "/#clinic-setup",
     placement: "home-banner",
     active: true,
     priority: 2,
@@ -3703,7 +3703,7 @@ $$("[data-scroll]").forEach((button) => {
     setActiveNavPill(button);
     const target = $(`#${button.dataset.scroll}`);
     if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
-    else window.location.href = `index.html#${button.dataset.scroll}`;
+    else window.location.href = `/#${button.dataset.scroll}`;
   });
 });
 
