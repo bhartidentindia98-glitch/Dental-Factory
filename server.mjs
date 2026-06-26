@@ -742,6 +742,14 @@ function merchantProductDescription(product) {
   return cleanXmlText(`${base || `${product.name} is available from Dental Factory for dental clinics and procurement teams.`} ${details}`, 5000);
 }
 
+function merchantProductId(product) {
+  const raw = slugify(product.seoSlug || product.id || product.name) || createPublicId("product").toLowerCase();
+  if (raw.length <= 50) return raw;
+  const hash = crypto.createHash("sha1").update(raw).digest("hex").slice(0, 8);
+  const prefix = raw.slice(0, 41).replace(/-+$/g, "") || "product";
+  return `${prefix}-${hash}`.slice(0, 50);
+}
+
 function merchantXmlItem(product, products) {
   const price = Number(product.price || 0);
   const imageUrl = merchantImageUrl(product);
@@ -754,7 +762,7 @@ function merchantXmlItem(product, products) {
   const hasIdentifier = Boolean(product.gtin || product.mpn);
 
   return `  <item>
-    <g:id>${escapeXml(product.seoSlug || product.id || slugify(product.name))}</g:id>
+    <g:id>${escapeXml(merchantProductId(product))}</g:id>
     <title>${escapeXml(cleanXmlText(product.name, 150))}</title>
     <link>${escapeXml(productUrl)}</link>
     <description>${escapeXml(description)}</description>
