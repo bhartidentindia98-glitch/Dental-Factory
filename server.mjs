@@ -509,6 +509,8 @@ function normalizeProduct(product) {
     hsn: String(product.hsn || defaultHsnCode).trim(),
     unit: String(product.unit || defaultUnit).trim(),
     gstRate: Number(product.gstRate ?? defaultGstRate),
+    gtin: String(product.gtin || "").trim(),
+    mpn: String(product.mpn || "").trim(),
     updatedAt: product.updatedAt || new Date().toISOString(),
   };
 }
@@ -709,6 +711,67 @@ function productSchema(product, canonical) {
       url: canonical,
     },
   })}</script>`;
+}
+
+function cleanXmlText(value, maxLength = 5000) {
+  const text = String(value || "")
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return text.length > maxLength ? text.slice(0, maxLength).trim() : text;
+}
+
+function merchantImageUrl(product) {
+  const images = Array.from(new Set(rawImageList(product.images).concat(product.image).map((image) => String(image || "").trim()).filter(Boolean)));
+  const image = images.find((item) => !/^data:/i.test(item) && normalizeStoredImage(item) !== "assets/hero-dental-shop.png");
+  return image ? absoluteSiteUrl(image) : "";
+}
+
+function merchantProductDescription(product) {
+  const base = cleanXmlText(product.description, 4200);
+  const details = [
+    product.brand ? `Brand: ${product.brand}.` : "",
+    product.category ? `Category: ${product.category}.` : "",
+    product.hsn ? `HSN: ${product.hsn}.` : "",
+    product.unit ? `Unit: ${product.unit}.` : "",
+    Number(product.gstRate ?? defaultGstRate) ? `GST: ${Number(product.gstRate ?? defaultGstRate)}%.` : "",
+    product.delivery ? product.delivery : "Clinic-ready dental supply with dispatch support from Dental Factory.",
+  ]
+    .filter(Boolean)
+    .join(" ");
+  return cleanXmlText(`${base || `${product.name} is available from Dental Factory for dental clinics and procurement teams.`} ${details}`, 5000);
+}
+
+function merchantXmlItem(product, products) {
+  const price = Number(product.price || 0);
+  const imageUrl = merchantImageUrl(product);
+  if (!product.name || !price || price <= 0 || !imageUrl) return "";
+
+  const productUrl = absoluteSiteUrl(productSeoUrl(product, products));
+  const category = productCategoryRoute(product);
+  const productType = category?.title || product.category || "Dental supplies";
+  const description = merchantProductDescription(product);
+  const hasIdentifier = Boolean(product.gtin || product.mpn);
+
+  return `  <item>
+    <g:id>${escapeXml(product.seoSlug || product.id || slugify(product.name))}</g:id>
+    <title>${escapeXml(cleanXmlText(product.name, 150))}</title>
+    <link>${escapeXml(productUrl)}</link>
+    <description>${escapeXml(description)}</description>
+    <g:title>${escapeXml(cleanXmlText(product.name, 150))}</g:title>
+    <g:description>${escapeXml(description)}</g:description>
+    <g:link>${escapeXml(productUrl)}</g:link>
+    <g:image_link>${escapeXml(imageUrl)}</g:image_link>
+    <g:availability>${Number(product.stock || 0) > 0 ? "in_stock" : "out_of_stock"}</g:availability>
+    <g:price>${escapeXml(`${price.toFixed(2)} ${paymentCurrency}`)}</g:price>
+    <g:condition>new</g:condition>
+    <g:brand>${escapeXml(cleanXmlText(product.brand || "Dental Factory", 70))}</g:brand>
+    <g:product_type>${escapeXml(cleanXmlText(productType, 750))}</g:product_type>
+    ${product.gtin ? `<g:gtin>${escapeXml(cleanXmlText(product.gtin, 70))}</g:gtin>` : ""}
+    ${product.mpn ? `<g:mpn>${escapeXml(cleanXmlText(product.mpn, 70))}</g:mpn>` : ""}
+    ${hasIdentifier ? "" : "<g:identifier_exists>no</g:identifier_exists>"}
+    <g:adult>no</g:adult>
+  </item>`;
 }
 
 function formatRupees(value) {
@@ -2800,6 +2863,30 @@ async function serveCategorySeoPage(res, category) {
   res.end(html);
 }
 
+async function serveGoogleMerchantFeed(res) {
+  const products = await readCatalogProducts();
+  const productEntries = productSeoEntries(products);
+  const items = productEntries.map((product) => merchantXmlItem(product, products)).filter(Boolean);
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:g="http://base.google.com/ns/1.0">
+<channel>
+  <title>Dental Factory Products</title>
+  <link>${escapeXml(absoluteSiteUrl("/"))}</link>
+  <description>Live Dental Factory product feed for Google Merchant Center.</description>
+${items.join("\n")}
+</channel>
+</rss>
+`;
+  res.writeHead(
+    200,
+    withSecurityHeaders({
+      "Content-Type": "application/xml; charset=utf-8",
+      "Cache-Control": "no-store, max-age=0",
+    })
+  );
+  res.end(xml);
+}
+
 async function serveSitemap(res) {
   const products = await readCatalogProducts();
   const today = new Date().toISOString().slice(0, 10);
@@ -2849,6 +2936,10 @@ async function handleStatic(req, res, reqUrl) {
   const requestPath = decodeURIComponent(reqUrl.pathname === "/" ? "/index.html" : reqUrl.pathname);
   if (reqUrl.pathname === "/sitemap.xml") {
     await serveSitemap(res);
+    return;
+  }
+  if (reqUrl.pathname === "/google-merchant-feed.xml") {
+    await serveGoogleMerchantFeed(res);
     return;
   }
   if (await handleLegacyRedirects(res, reqUrl)) return;
