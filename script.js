@@ -118,6 +118,10 @@ const assignCallbackButton = $("#assignCallbackButton");
 const adminActionMessage = $("#adminActionMessage");
 const productAdminForm = $("#productAdminForm");
 const productAdminTable = $("#productAdminTable");
+const productAdminSearch = $("#productAdminSearch");
+const productAdminCategoryFilter = $("#productAdminCategoryFilter");
+const productAdminBrandFilter = $("#productAdminBrandFilter");
+const productAdminSort = $("#productAdminSort");
 const productAdminMessage = $("#productAdminMessage");
 const clearProductForm = $("#clearProductForm");
 const resetProductForm = $("#resetProductForm");
@@ -130,6 +134,9 @@ const supplierPriceMessage = $("#supplierPriceMessage");
 const refreshPriceAuditButton = $("#refreshPriceAuditButton");
 const brandAdminForm = $("#brandAdminForm");
 const brandAdminTable = $("#brandAdminTable");
+const brandAdminSearch = $("#brandAdminSearch");
+const brandAdminStatusFilter = $("#brandAdminStatusFilter");
+const brandAdminSort = $("#brandAdminSort");
 const brandAdminMessage = $("#brandAdminMessage");
 const clearBrandForm = $("#clearBrandForm");
 const resetBrandForm = $("#resetBrandForm");
@@ -152,6 +159,8 @@ let googleIdentityReady = false;
 let googleIdentityScriptPromise = null;
 let latestAdminOrders = [];
 let latestCustomerDashboard = null;
+let latestAdminProducts = [];
+let latestAdminBrands = [];
 let adminSessionMinutes = 30;
 let adminAutoLogoutTimer = null;
 const ADMIN_PRODUCTS_KEY = "dentalFactoryAdminProducts";
@@ -404,6 +413,7 @@ function normalizeAdminProduct(product) {
     minMargin: Number(product.minMargin || 0),
     supplier: String(product.supplier || "").trim(),
     lastPriceCheckedAt: String(product.lastPriceCheckedAt || product.priceCheckedAt || "").slice(0, 10),
+    updatedAt: String(product.updatedAt || "").trim(),
     specs,
   };
 }
@@ -723,6 +733,19 @@ function populateBrandSelect(selected = "") {
   brandSelect.value = selectedValue;
 }
 
+function populateProductBrandFilter(selected = "") {
+  if (!productAdminBrandFilter) return;
+  const selectedValue = String(selected || productAdminBrandFilter.value || "");
+  const brandNames = Array.from(new Set(latestAdminProducts.map((product) => product.brand).filter(Boolean))).sort((a, b) => a.localeCompare(b));
+  productAdminBrandFilter.innerHTML = `<option value="">All brands</option>${brandNames
+    .map((brand) => `<option value="${escapeHtml(brand)}">${escapeHtml(brand)}</option>`)
+    .join("")}`;
+  if (selectedValue && !brandNames.includes(selectedValue)) {
+    productAdminBrandFilter.insertAdjacentHTML("beforeend", `<option value="${escapeHtml(selectedValue)}">${escapeHtml(selectedValue)}</option>`);
+  }
+  productAdminBrandFilter.value = selectedValue;
+}
+
 function brandLogoHtml(brand) {
   if (brand.logo) {
     return `<span class="brand-logo-frame"><img src="${escapeHtml(brand.logo)}" alt="${escapeHtml(brand.name)} logo" /><span class="brand-wordmark" hidden>${escapeHtml(brand.name)}</span></span>`;
@@ -795,6 +818,11 @@ function brandRowTemplate(brand) {
   `;
 }
 
+function sortDateValue(item) {
+  const parsed = Date.parse(item.updatedAt || "");
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
 function applyBrandRowData(row, data) {
   const brand = normalizeBrand(data);
   row.dataset.id = brand.id;
@@ -802,6 +830,7 @@ function applyBrandRowData(row, data) {
   row.dataset.logo = brand.logo;
   row.dataset.description = brand.description;
   row.dataset.featured = String(brand.featured);
+  row.dataset.updatedAt = brand.updatedAt;
   row.innerHTML = brandRowTemplate(brand);
 }
 
@@ -813,19 +842,43 @@ function adminBrandsFromRows() {
       name: row.dataset.name,
       logo: row.dataset.logo,
       featured: row.dataset.featured !== "false",
+      updatedAt: row.dataset.updatedAt,
     })
   );
 }
 
-function renderAdminBrandRows(brands) {
+function filteredAdminBrands() {
+  const searchTerm = String(brandAdminSearch?.value || "").trim().toLowerCase();
+  const status = String(brandAdminStatusFilter?.value || "");
+  const sortMode = String(brandAdminSort?.value || "updated");
+
+  return latestAdminBrands
+    .filter((brand) => {
+      const matchesSearch = !searchTerm || `${brand.name} ${brand.description}`.toLowerCase().includes(searchTerm);
+      const matchesStatus = !status || (status === "featured" ? brand.featured : !brand.featured);
+      return matchesSearch && matchesStatus;
+    })
+    .sort((a, b) => {
+      if (sortMode === "name") return a.name.localeCompare(b.name);
+      return sortDateValue(b) - sortDateValue(a) || a.name.localeCompare(b.name);
+    });
+}
+
+function renderFilteredAdminBrandRows() {
   if (!brandAdminTable) return;
   $$("#brandAdminTable .brand-admin-row:not(.brand-admin-head)").forEach((row) => row.remove());
-  brands.forEach((brand) => {
+  filteredAdminBrands().forEach((brand) => {
     const row = document.createElement("div");
     row.className = "product-admin-row brand-admin-row";
     applyBrandRowData(row, brand);
     brandAdminTable.appendChild(row);
   });
+}
+
+function renderAdminBrandRows(brands) {
+  if (!brandAdminTable) return;
+  latestAdminBrands = brands.map(normalizeBrand).filter((brand) => brand.name);
+  renderFilteredAdminBrandRows();
 }
 
 function resetAdminBrandForm() {
@@ -2882,6 +2935,7 @@ function applyProductRowData(row, data) {
   row.dataset.minMargin = product.minMargin;
   row.dataset.supplier = product.supplier;
   row.dataset.lastPriceCheckedAt = product.lastPriceCheckedAt;
+  row.dataset.updatedAt = product.updatedAt;
   row.innerHTML = productRowTemplate(product);
 }
 
@@ -2906,19 +2960,53 @@ function adminProductsFromRows() {
       minMargin: row.dataset.minMargin,
       supplier: row.dataset.supplier,
       lastPriceCheckedAt: row.dataset.lastPriceCheckedAt,
+      updatedAt: row.dataset.updatedAt,
     })
   );
 }
 
-function renderAdminProductRows(products) {
+function filteredAdminProducts() {
+  const searchTerm = String(productAdminSearch?.value || "").trim().toLowerCase();
+  const category = String(productAdminCategoryFilter?.value || "");
+  const brand = String(productAdminBrandFilter?.value || "");
+  const sortMode = String(productAdminSort?.value || "updated");
+
+  return latestAdminProducts
+    .filter((product) => {
+      const searchable = `${product.name} ${product.brand} ${product.category} ${product.hsn} ${product.supplier} ${product.description}`.toLowerCase();
+      const matchesSearch = !searchTerm || searchable.includes(searchTerm);
+      const matchesCategory = !category || product.category === category;
+      const matchesBrand = !brand || product.brand === brand;
+      return matchesSearch && matchesCategory && matchesBrand;
+    })
+    .sort((a, b) => {
+      if (sortMode === "name") return a.name.localeCompare(b.name);
+      if (sortMode === "stock") return Number(a.stock || 0) - Number(b.stock || 0) || a.name.localeCompare(b.name);
+      if (sortMode === "margin") {
+        const marginA = productMarginPercent(a);
+        const marginB = productMarginPercent(b);
+        return (marginA ?? -999) - (marginB ?? -999) || a.name.localeCompare(b.name);
+      }
+      return sortDateValue(b) - sortDateValue(a) || a.name.localeCompare(b.name);
+    });
+}
+
+function renderFilteredAdminProductRows() {
   if (!productAdminTable) return;
   $$("#productAdminTable .product-admin-row:not(.product-admin-head)").forEach((row) => row.remove());
-  products.forEach((product) => {
+  filteredAdminProducts().forEach((product) => {
     const row = document.createElement("div");
     row.className = "product-admin-row";
     applyProductRowData(row, product);
     productAdminTable.appendChild(row);
   });
+}
+
+function renderAdminProductRows(products) {
+  if (!productAdminTable) return;
+  latestAdminProducts = products.map(normalizeAdminProduct).filter((product) => product.name);
+  populateProductBrandFilter();
+  renderFilteredAdminProductRows();
 }
 
 function numberFromText(value) {
@@ -4724,6 +4812,15 @@ brandAdminForm?.addEventListener("submit", async (event) => {
 
 clearBrandForm?.addEventListener("click", resetAdminBrandForm);
 resetBrandForm?.addEventListener("click", resetAdminBrandForm);
+
+brandAdminSearch?.addEventListener("input", renderFilteredAdminBrandRows);
+brandAdminStatusFilter?.addEventListener("change", renderFilteredAdminBrandRows);
+brandAdminSort?.addEventListener("change", renderFilteredAdminBrandRows);
+
+productAdminSearch?.addEventListener("input", renderFilteredAdminProductRows);
+productAdminCategoryFilter?.addEventListener("change", renderFilteredAdminProductRows);
+productAdminBrandFilter?.addEventListener("change", renderFilteredAdminProductRows);
+productAdminSort?.addEventListener("change", renderFilteredAdminProductRows);
 
 productAdminForm?.elements.image?.addEventListener("input", () => {
   updateAdminImagePreview();

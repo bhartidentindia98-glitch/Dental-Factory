@@ -173,12 +173,35 @@
               <p class="checkout-message full-field" id="brandAdminMessage" role="status"></p>
             </form>
 
-            <div class="product-admin-table brand-admin-table" id="brandAdminTable">
-              <div class="product-admin-row product-admin-head brand-admin-row brand-admin-head">
-                <span>Brand</span>
-                <span>Preview</span>
-                <span>Status</span>
-                <span>Action</span>
+            <div class="admin-list-panel">
+              <div class="admin-list-tools" aria-label="Brand list controls">
+                <label>
+                  Search brands
+                  <input id="brandAdminSearch" type="search" placeholder="Brand name" autocomplete="off" />
+                </label>
+                <label>
+                  Status
+                  <select id="brandAdminStatusFilter">
+                    <option value="">All brands</option>
+                    <option value="featured">Featured only</option>
+                    <option value="hidden">Hidden only</option>
+                  </select>
+                </label>
+                <label>
+                  Sort
+                  <select id="brandAdminSort">
+                    <option value="updated">Recently updated</option>
+                    <option value="name">Name A-Z</option>
+                  </select>
+                </label>
+              </div>
+              <div class="product-admin-table brand-admin-table admin-scroll-list" id="brandAdminTable">
+                <div class="product-admin-row product-admin-head brand-admin-row brand-admin-head">
+                  <span>Brand</span>
+                  <span>Preview</span>
+                  <span>Status</span>
+                  <span>Action</span>
+                </div>
               </div>
             </div>
           </div>
@@ -284,34 +307,70 @@
               <p class="checkout-message full-field" id="productAdminMessage" role="status"></p>
             </form>
 
-            <div class="product-admin-table" id="productAdminTable">
-              <div class="product-admin-row product-admin-head">
-                <span>Product</span>
-                <span>Category</span>
-                <span>Price</span>
-                <span>Stock</span>
-                <span>Action</span>
+            <div class="admin-list-panel">
+              <div class="admin-list-tools product-admin-tools" aria-label="Product list controls">
+                <label>
+                  Search products
+                  <input id="productAdminSearch" type="search" placeholder="Name, brand, HSN, supplier" autocomplete="off" />
+                </label>
+                <label>
+                  Category
+                  <select id="productAdminCategoryFilter">
+                    <option value="">All categories</option>
+                    <option value="Equipment">Equipment</option>
+                    <option value="Rotary instruments">Rotary instruments</option>
+                    <option value="Restoratives">Restoratives</option>
+                    <option value="Endodontics">Endodontics</option>
+                    <option value="Sterilization">Sterilization</option>
+                    <option value="Implants">Implants</option>
+                    <option value="Orthodontics">Orthodontics</option>
+                  </select>
+                </label>
+                <label>
+                  Brand
+                  <select id="productAdminBrandFilter">
+                    <option value="">All brands</option>
+                  </select>
+                </label>
+                <label>
+                  Sort
+                  <select id="productAdminSort">
+                    <option value="updated">Recently updated</option>
+                    <option value="name">Name A-Z</option>
+                    <option value="stock">Low stock first</option>
+                    <option value="margin">Low margin first</option>
+                  </select>
+                </label>
               </div>
-              <div class="product-admin-row" data-name="Airotor Elite Handpiece" data-brand="Waldent" data-category="Rotary instruments" data-price="1899" data-mrp="2299" data-stock="42" data-description="Push button cartridge, clean spray, ceramic bearings." data-image="assets/air-rotor.png">
-                <strong>Airotor Elite Handpiece<small>Waldent</small></strong>
-                <span>Rotary instruments</span>
-                <span>Rs. 1,899</span>
-                <b>42</b>
-                <div class="row-actions"><button type="button" data-edit-product>Edit</button><button type="button" data-delete-product>Delete</button></div>
-              </div>
-              <div class="product-admin-row" data-name="Universal Composite Syringe Kit" data-brand="3M ESPE" data-category="Restoratives" data-price="1249" data-mrp="1650" data-stock="28" data-description="Microhybrid restorative shades for daily anterior and posterior work." data-image="assets/composite-kit.png">
-                <strong>Universal Composite Syringe Kit<small>3M ESPE</small></strong>
-                <span>Restoratives</span>
-                <span>Rs. 1,249</span>
-                <b>28</b>
-                <div class="row-actions"><button type="button" data-edit-product>Edit</button><button type="button" data-delete-product>Delete</button></div>
-              </div>
-              <div class="product-admin-row" data-name="Class B Autoclave 18L" data-brand="Waldent" data-category="Sterilization" data-price="42999" data-mrp="49999" data-stock="16" data-description="Pre-vacuum cycles, printer-ready, tray set included." data-image="assets/autoclave.png">
-                <strong>Class B Autoclave 18L<small>Waldent</small></strong>
-                <span>Sterilization</span>
-                <span>Rs. 42,999</span>
-                <b>16</b>
-                <div class="row-actions"><button type="button" data-edit-product>Edit</button><button type="button" data-delete-product>Delete</button></div>
+              <div class="product-admin-table admin-scroll-list" id="productAdminTable">
+                <div class="product-admin-row product-admin-head">
+                  <span>Product</span>
+                  <span>Category</span>
+                  <span>Price</span>
+                  <span>Stock</span>
+                  <span>Action</span>
+                </div>
+                <div class="product-admin-row" data-name="Airotor Elite Handpiece" data-brand="Waldent" data-category="Rotary instruments" data-price="1899" data-mrp="2299" data-stock="42" data-description="Push button cartridge, clean spray, ceramic bearings." data-image="assets/air-rotor.png">
+                  <strong>Airotor Elite Handpiece<small>Waldent</small></strong>
+                  <span>Rotary instruments</span>
+                  <span>Rs. 1,899</span>
+                  <b>42</b>
+                  <div class="row-actions"><button type="button" data-edit-product>Edit</button><button type="button" data-delete-product>Delete</button></div>
+                </div>
+                <div class="product-admin-row" data-name="Universal Composite Syringe Kit" data-brand="3M ESPE" data-category="Restoratives" data-price="1249" data-mrp="1650" data-stock="28" data-description="Microhybrid restorative shades for daily anterior and posterior work." data-image="assets/composite-kit.png">
+                  <strong>Universal Composite Syringe Kit<small>3M ESPE</small></strong>
+                  <span>Restoratives</span>
+                  <span>Rs. 1,249</span>
+                  <b>28</b>
+                  <div class="row-actions"><button type="button" data-edit-product>Edit</button><button type="button" data-delete-product>Delete</button></div>
+                </div>
+                <div class="product-admin-row" data-name="Class B Autoclave 18L" data-brand="Waldent" data-category="Sterilization" data-price="42999" data-mrp="49999" data-stock="16" data-description="Pre-vacuum cycles, printer-ready, tray set included." data-image="assets/autoclave.png">
+                  <strong>Class B Autoclave 18L<small>Waldent</small></strong>
+                  <span>Sterilization</span>
+                  <span>Rs. 42,999</span>
+                  <b>16</b>
+                  <div class="row-actions"><button type="button" data-edit-product>Edit</button><button type="button" data-delete-product>Delete</button></div>
+                </div>
               </div>
             </div>
           </div>
