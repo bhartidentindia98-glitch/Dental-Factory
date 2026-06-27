@@ -33,6 +33,7 @@
         <a class="nav-pill" href="#ads-admin">Ads</a>
         <a class="nav-pill" href="#brands-admin">Brands</a>
         <a class="nav-pill" href="#products-admin">Products</a>
+        <a class="nav-pill" href="#price-audit">Price audit</a>
         <a class="nav-pill" href="#orders">Orders</a>
         <a class="nav-pill" href="#inventory">Inventory</a>
         <a class="nav-pill" href="#enquiries">Enquiries</a>
@@ -222,6 +223,22 @@
                 <input name="mrp" required inputmode="numeric" autocomplete="off" />
               </label>
               <label>
+                Purchase price
+                <input name="costPrice" inputmode="decimal" autocomplete="off" />
+              </label>
+              <label>
+                Minimum margin %
+                <input name="minMargin" inputmode="decimal" autocomplete="off" />
+              </label>
+              <label>
+                Supplier name
+                <input name="supplier" autocomplete="off" />
+              </label>
+              <label>
+                Last price checked
+                <input name="lastPriceCheckedAt" type="date" autocomplete="off" />
+              </label>
+              <label>
                 Stock quantity
                 <input name="stock" required inputmode="numeric" autocomplete="off" />
               </label>
@@ -296,6 +313,30 @@
                 <b>16</b>
                 <div class="row-actions"><button type="button" data-edit-product>Edit</button><button type="button" data-delete-product>Delete</button></div>
               </div>
+            </div>
+          </div>
+        </article>
+
+        <article class="admin-card wide-card" id="price-audit">
+          <div class="section-heading">
+            <div><span class="eyebrow">Pricing</span><h2>Price audit</h2></div>
+            <button class="text-link" id="refreshPriceAuditButton" type="button">Refresh audit</button>
+          </div>
+          <div class="price-audit-summary" id="priceAuditSummary"></div>
+          <form class="product-admin-form price-audit-form" id="supplierPriceForm" autocomplete="off">
+            <label class="full-field">
+              Upload supplier price CSV
+              <input name="supplierCsv" type="file" accept=".csv,text/csv" />
+            </label>
+            <p class="checkout-message full-field" id="supplierPriceMessage" role="status"></p>
+          </form>
+          <div class="product-admin-table price-audit-table" id="priceAuditTable">
+            <div class="product-admin-row product-admin-head price-audit-row price-audit-head">
+              <span>Product</span>
+              <span>Cost / price</span>
+              <span>Margin</span>
+              <span>Attention</span>
+              <span>Action</span>
             </div>
           </div>
         </article>

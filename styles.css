@@ -2557,6 +2557,50 @@ main {
   grid-template-columns: minmax(220px, 1.2fr) minmax(160px, 0.8fr) 90px 132px;
 }
 
+.price-audit-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.price-audit-summary article {
+  display: grid;
+  gap: 4px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #f8fbfb;
+}
+
+.price-audit-summary span {
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.price-audit-summary strong {
+  color: var(--sea-dark);
+  font-size: 1.6rem;
+}
+
+.price-audit-summary small {
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.price-audit-form {
+  margin-bottom: 14px;
+}
+
+.price-audit-row {
+  grid-template-columns: minmax(200px, 1fr) minmax(170px, 0.9fr) minmax(130px, 0.7fr) minmax(220px, 1.2fr) 96px;
+}
+
+.price-audit-row > span {
+  color: var(--muted);
+  line-height: 1.35;
+}
+
 .product-admin-head {
   color: var(--muted);
   background: #f8fbfb;
@@ -3886,6 +3930,7 @@ main {
   .stock-list > div,
   .enquiry-board > div,
   .product-admin-layout,
+  .price-audit-summary,
   .product-admin-row {
     grid-template-columns: 1fr;
   }

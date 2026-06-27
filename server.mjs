@@ -511,6 +511,10 @@ function normalizeProduct(product) {
     gstRate: Number(product.gstRate ?? defaultGstRate),
     gtin: String(product.gtin || "").trim(),
     mpn: String(product.mpn || "").trim(),
+    costPrice: Number(product.costPrice || product.purchasePrice || 0),
+    minMargin: Number(product.minMargin || 0),
+    supplier: String(product.supplier || "").trim(),
+    lastPriceCheckedAt: String(product.lastPriceCheckedAt || product.priceCheckedAt || "").slice(0, 10),
     updatedAt: product.updatedAt || new Date().toISOString(),
   };
 }
@@ -520,6 +524,11 @@ function visibleStoredProducts(products) {
     .filter((product) => !isRetiredDefaultProduct(product))
     .map(normalizeProduct)
     .filter((product) => product.name);
+}
+
+function publicProduct(product) {
+  const { costPrice, minMargin, supplier, lastPriceCheckedAt, ...safeProduct } = normalizeProduct(product);
+  return safeProduct;
 }
 
 function visibleStoredBrands(brands) {
@@ -2164,9 +2173,16 @@ async function handleApi(req, res, reqUrl) {
     return;
   }
 
-  if (reqUrl.pathname === "/api/products" && req.method === "GET") {
+  if (reqUrl.pathname === "/api/admin/products" && req.method === "GET") {
+    if (!requireAdmin(req, res)) return;
     const products = visibleStoredProducts(await readJson(productsFile, []));
     sendJson(res, 200, products);
+    return;
+  }
+
+  if (reqUrl.pathname === "/api/products" && req.method === "GET") {
+    const products = visibleStoredProducts(await readJson(productsFile, []));
+    sendJson(res, 200, products.map(publicProduct));
     return;
   }
 

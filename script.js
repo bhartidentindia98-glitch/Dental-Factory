@@ -123,6 +123,11 @@ const clearProductForm = $("#clearProductForm");
 const resetProductForm = $("#resetProductForm");
 const productImagePreview = $("#productImagePreview");
 const productGalleryPreview = $("#productGalleryPreview");
+const priceAuditSummary = $("#priceAuditSummary");
+const priceAuditTable = $("#priceAuditTable");
+const supplierPriceForm = $("#supplierPriceForm");
+const supplierPriceMessage = $("#supplierPriceMessage");
+const refreshPriceAuditButton = $("#refreshPriceAuditButton");
 const brandAdminForm = $("#brandAdminForm");
 const brandAdminTable = $("#brandAdminTable");
 const brandAdminMessage = $("#brandAdminMessage");
@@ -153,6 +158,7 @@ const ADMIN_PRODUCTS_KEY = "dentalFactoryAdminProducts";
 const ADMIN_BRANDS_KEY = "dentalFactoryAdminBrands";
 const ADMIN_ADS_KEY = "dentalFactoryAdminAds";
 const PRODUCTS_API = "/api/products";
+const ADMIN_PRODUCTS_API = "/api/admin/products";
 const BRANDS_API = "/api/brands";
 const ADS_API = "/api/ads";
 const ADMIN_ADS_API = "/api/admin/ads";
@@ -169,6 +175,9 @@ const CUSTOMER_ADDRESS_API = "/api/customer/addresses";
 const CUSTOMER_TICKETS_API = "/api/customer/tickets";
 const CUSTOMER_PASSWORD_API = "/api/customer/password";
 const CUSTOMER_LOGOUT_API = "/api/customer/logout";
+const DEFAULT_MIN_MARGIN = 15;
+const PRICE_AUDIT_STALE_DAYS = 30;
+let supplierPriceComparison = null;
 const CUSTOMER_LOGOUT_ALL_API = "/api/customer/logout-all";
 const PAYMENT_CONFIG_API = "/api/payments/config";
 const RAZORPAY_ORDER_API = "/api/payments/razorpay/order";
@@ -391,6 +400,10 @@ function normalizeAdminProduct(product) {
     hsn: String(product.hsn || DEFAULT_HSN).trim(),
     unit: String(product.unit || DEFAULT_UNIT).trim(),
     gstRate: Number(product.gstRate ?? DEFAULT_GST_RATE),
+    costPrice: Number(product.costPrice || product.purchasePrice || 0),
+    minMargin: Number(product.minMargin || 0),
+    supplier: String(product.supplier || "").trim(),
+    lastPriceCheckedAt: String(product.lastPriceCheckedAt || product.priceCheckedAt || "").slice(0, 10),
     specs,
   };
 }
@@ -862,9 +875,9 @@ async function apiJson(url, options = {}) {
   return payload;
 }
 
-async function fetchBackendProducts() {
+async function fetchBackendProducts(options = {}) {
   try {
-    const products = await apiJson(PRODUCTS_API);
+    const products = await apiJson(options.includePrivate ? ADMIN_PRODUCTS_API : PRODUCTS_API);
     if (!Array.isArray(products)) return null;
     return products.filter((product) => !isRetiredDefaultProduct(product)).map(normalizeAdminProduct).filter((product) => product.name);
   } catch {
@@ -2824,7 +2837,7 @@ function resetAdminProductForm() {
   if (!productAdminForm) return;
   productAdminForm.reset();
   productAdminForm.elements.editing.value = "";
-  ["name", "brand", "price", "mrp", "stock", "hsn", "unit", "gstRate", "description", "image", "images"].forEach((fieldName) => {
+  ["name", "brand", "price", "mrp", "costPrice", "minMargin", "supplier", "lastPriceCheckedAt", "stock", "hsn", "unit", "gstRate", "description", "image", "images"].forEach((fieldName) => {
     if (productAdminForm.elements[fieldName]) productAdminForm.elements[fieldName].value = "";
   });
   populateBrandSelect("");
@@ -2834,10 +2847,14 @@ function resetAdminProductForm() {
 }
 
 function productRowTemplate(data) {
+  const margin = productMarginPercent(data);
+  const priceNote = Number(data.costPrice || 0)
+    ? `Cost ${formatMoney(data.costPrice)}${margin === null ? "" : ` | Margin ${formatPercent(margin)}`}`
+    : "Purchase price not set";
   return `
     <strong>${escapeHtml(data.name)}<small>${escapeHtml(data.brand)} | HSN ${escapeHtml(data.hsn)} | GST ${escapeHtml(data.gstRate)}%</small></strong>
     <span>${escapeHtml(data.category)}</span>
-    <span>${formatMoney(data.price)}</span>
+    <span>${formatMoney(data.price)}<small>${escapeHtml(priceNote)}</small></span>
     <b>${escapeHtml(data.stock)}</b>
     <div class="row-actions">
       <button type="button" data-edit-product>Edit</button>
@@ -2861,6 +2878,10 @@ function applyProductRowData(row, data) {
   row.dataset.hsn = product.hsn;
   row.dataset.unit = product.unit;
   row.dataset.gstRate = product.gstRate;
+  row.dataset.costPrice = product.costPrice;
+  row.dataset.minMargin = product.minMargin;
+  row.dataset.supplier = product.supplier;
+  row.dataset.lastPriceCheckedAt = product.lastPriceCheckedAt;
   row.innerHTML = productRowTemplate(product);
 }
 
@@ -2881,6 +2902,10 @@ function adminProductsFromRows() {
       hsn: row.dataset.hsn,
       unit: row.dataset.unit,
       gstRate: row.dataset.gstRate,
+      costPrice: row.dataset.costPrice,
+      minMargin: row.dataset.minMargin,
+      supplier: row.dataset.supplier,
+      lastPriceCheckedAt: row.dataset.lastPriceCheckedAt,
     })
   );
 }
@@ -2896,6 +2921,248 @@ function renderAdminProductRows(products) {
   });
 }
 
+function numberFromText(value) {
+  const cleaned = String(value || "").replace(/[^0-9.-]/g, "");
+  const parsed = Number.parseFloat(cleaned);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function formatPercent(value) {
+  if (!Number.isFinite(value)) return "-";
+  return `${Math.round(value * 10) / 10}%`;
+}
+
+function productMinMargin(product) {
+  const value = Number(product.minMargin || 0);
+  return value > 0 ? value : DEFAULT_MIN_MARGIN;
+}
+
+function productMarginPercent(product, costOverride = null) {
+  const price = Number(product.price || 0);
+  const cost = costOverride === null ? Number(product.costPrice || 0) : Number(costOverride || 0);
+  if (!price || !cost) return null;
+  return ((price - cost) / price) * 100;
+}
+
+function suggestedSellingPrice(cost, minMargin) {
+  const safeMargin = Math.min(80, Math.max(1, Number(minMargin || DEFAULT_MIN_MARGIN)));
+  const suggested = Number(cost || 0) / (1 - safeMargin / 100);
+  return Math.ceil(suggested);
+}
+
+function daysSince(dateText) {
+  if (!dateText) return null;
+  const date = new Date(`${dateText}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return null;
+  return Math.floor((Date.now() - date.getTime()) / 86400000);
+}
+
+function priceAuditIssues(product) {
+  const issues = [];
+  const price = Number(product.price || 0);
+  const mrp = Number(product.mrp || 0);
+  const cost = Number(product.costPrice || 0);
+  const minMargin = productMinMargin(product);
+  const margin = productMarginPercent(product);
+  const lastCheckedDays = daysSince(product.lastPriceCheckedAt);
+
+  if (!cost) {
+    issues.push("Purchase price missing");
+  } else if (price <= cost) {
+    issues.push("Selling price is at or below purchase price");
+  } else if (margin !== null && margin < minMargin) {
+    issues.push(`Margin ${formatPercent(margin)} is below ${formatPercent(minMargin)}`);
+  }
+
+  if (mrp && price > mrp) issues.push("Selling price is above MRP");
+  if (!product.lastPriceCheckedAt) {
+    issues.push("Last price checked date missing");
+  } else if (lastCheckedDays !== null && lastCheckedDays > PRICE_AUDIT_STALE_DAYS) {
+    issues.push(`Price not checked for ${lastCheckedDays} days`);
+  }
+
+  return issues;
+}
+
+function parseCsvRows(text) {
+  const rows = [];
+  let row = [];
+  let cell = "";
+  let quoted = false;
+
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index];
+    const next = text[index + 1];
+
+    if (char === '"' && quoted && next === '"') {
+      cell += '"';
+      index += 1;
+    } else if (char === '"') {
+      quoted = !quoted;
+    } else if (char === "," && !quoted) {
+      row.push(cell);
+      cell = "";
+    } else if ((char === "\n" || char === "\r") && !quoted) {
+      if (char === "\r" && next === "\n") index += 1;
+      row.push(cell);
+      rows.push(row);
+      row = [];
+      cell = "";
+    } else {
+      cell += char;
+    }
+  }
+
+  row.push(cell);
+  rows.push(row);
+  return rows.filter((items) => items.some((item) => String(item || "").trim()));
+}
+
+function csvHeaderKey(value) {
+  return String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, "");
+}
+
+function csvObjects(text) {
+  const rows = parseCsvRows(text);
+  const headers = (rows.shift() || []).map(csvHeaderKey);
+  return rows.map((row) =>
+    headers.reduce((record, header, index) => {
+      if (header) record[header] = String(row[index] || "").trim();
+      return record;
+    }, {})
+  );
+}
+
+function pickCsvValue(row, names) {
+  for (const name of names) {
+    const value = row[csvHeaderKey(name)];
+    if (value) return value;
+  }
+  return "";
+}
+
+function compareSupplierPrices(csvText, products) {
+  const rows = csvObjects(csvText);
+  const productMap = new Map();
+  products.forEach((product) => {
+    [product.id, product.name, `${product.brand} ${product.name}`]
+      .map(slugifyProduct)
+      .filter(Boolean)
+      .forEach((key) => productMap.set(key, product));
+  });
+
+  let unmatched = 0;
+  const matches = rows
+    .map((row) => {
+      const rawName = pickCsvValue(row, ["product", "product name", "name", "title", "item name"]);
+      const rawId = pickCsvValue(row, ["id", "product id", "item id", "sku", "handle"]);
+      const supplierCost = numberFromText(pickCsvValue(row, ["purchase price", "cost price", "supplier price", "cost", "rate", "net rate", "price"]));
+      if (!supplierCost) return null;
+
+      const keys = [rawId, rawName].map(slugifyProduct).filter(Boolean);
+      let product = keys.map((key) => productMap.get(key)).find(Boolean);
+      const nameKey = slugifyProduct(rawName);
+      if (!product && nameKey.length > 5) {
+        product = products.find((item) => {
+          const productKey = slugifyProduct(item.name);
+          return productKey.includes(nameKey) || nameKey.includes(productKey);
+        });
+      }
+
+      if (!product) {
+        unmatched += 1;
+        return null;
+      }
+
+      const savedCost = Number(product.costPrice || 0);
+      const minMargin = productMinMargin(product);
+      const margin = productMarginPercent(product, supplierCost);
+      const changePercent = savedCost ? ((supplierCost - savedCost) / savedCost) * 100 : null;
+      const issues = [];
+
+      if (!savedCost) issues.push("Saved purchase price missing");
+      if (changePercent !== null && changePercent > 0) issues.push(`Supplier price up ${formatPercent(changePercent)}`);
+      if (Number(product.price || 0) <= supplierCost) issues.push("Current selling price is at or below supplier price");
+      if (margin !== null && margin < minMargin) issues.push(`Margin becomes ${formatPercent(margin)}, below ${formatPercent(minMargin)}`);
+
+      return {
+        product,
+        supplierCost,
+        savedCost,
+        margin,
+        suggestedPrice: suggestedSellingPrice(supplierCost, minMargin),
+        issues,
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => Number(b.issues.length > 0) - Number(a.issues.length > 0) || a.product.name.localeCompare(b.product.name));
+
+  return { matches, unmatched, imported: rows.length };
+}
+
+function renderPriceAudit(products = loadAdminProducts()) {
+  if (!priceAuditTable && !priceAuditSummary) return;
+  const normalizedProducts = products.map(normalizeAdminProduct).filter((product) => product.name);
+  const auditRows = normalizedProducts
+    .map((product) => ({ product, issues: priceAuditIssues(product) }))
+    .filter((item) => item.issues.length);
+  const lowMarginCount = normalizedProducts.filter((product) => {
+    const margin = productMarginPercent(product);
+    return margin !== null && margin < productMinMargin(product);
+  }).length;
+  const staleCount = normalizedProducts.filter((product) => {
+    const checkedDays = daysSince(product.lastPriceCheckedAt);
+    return !product.lastPriceCheckedAt || (checkedDays !== null && checkedDays > PRICE_AUDIT_STALE_DAYS);
+  }).length;
+
+  if (priceAuditSummary) {
+    const comparisonIssues = supplierPriceComparison?.matches?.filter((item) => item.issues.length).length || 0;
+    priceAuditSummary.innerHTML = `
+      <article><span>Products checked</span><strong>${escapeHtml(normalizedProducts.length)}</strong><small>Saved catalog items</small></article>
+      <article><span>Need attention</span><strong>${escapeHtml(auditRows.length)}</strong><small>${escapeHtml(lowMarginCount)} low-margin, ${escapeHtml(staleCount)} stale checks</small></article>
+      <article><span>Supplier CSV alerts</span><strong>${escapeHtml(comparisonIssues)}</strong><small>${supplierPriceComparison ? `${escapeHtml(supplierPriceComparison.matches.length)} matched, ${escapeHtml(supplierPriceComparison.unmatched)} unmatched` : "Upload a supplier price list"}</small></article>
+    `;
+  }
+
+  if (!priceAuditTable) return;
+  $$("#priceAuditTable .price-audit-row:not(.price-audit-head)").forEach((row) => row.remove());
+
+  const rows = supplierPriceComparison?.matches?.length
+    ? supplierPriceComparison.matches.map((item) => ({
+        product: item.product,
+        costText: `Supplier ${formatMoney(item.supplierCost)} | saved ${item.savedCost ? formatMoney(item.savedCost) : "not set"}`,
+        marginText: item.margin === null ? "-" : `${formatPercent(item.margin)} | suggest ${formatMoney(item.suggestedPrice)}`,
+        attention: item.issues.length ? item.issues.join("; ") : "OK",
+      }))
+    : auditRows.map((item) => ({
+        product: item.product,
+        costText: `${item.product.costPrice ? formatMoney(item.product.costPrice) : "Not set"} | selling ${formatMoney(item.product.price)}`,
+        marginText: productMarginPercent(item.product) === null ? "-" : `${formatPercent(productMarginPercent(item.product))} | min ${formatPercent(productMinMargin(item.product))}`,
+        attention: item.issues.join("; "),
+      }));
+
+  if (!rows.length) {
+    const empty = document.createElement("div");
+    empty.className = "product-admin-row price-audit-row";
+    empty.innerHTML = `<strong>No price issues<small>All saved products pass the current checks.</small></strong><span>-</span><span>-</span><span>OK</span><div></div>`;
+    priceAuditTable.appendChild(empty);
+    return;
+  }
+
+  rows.forEach((item) => {
+    const row = document.createElement("div");
+    row.className = "product-admin-row price-audit-row";
+    row.innerHTML = `
+      <strong>${escapeHtml(item.product.name)}<small>${escapeHtml(item.product.brand)} | ${escapeHtml(item.product.supplier || "Supplier not set")}</small></strong>
+      <span>${escapeHtml(item.costText)}</span>
+      <span>${escapeHtml(item.marginText)}</span>
+      <span>${escapeHtml(item.attention)}</span>
+      <div class="row-actions"><button type="button" data-edit-audit-product="${escapeHtml(item.product.name)}">Edit</button></div>
+    `;
+    priceAuditTable.appendChild(row);
+  });
+}
+
 function syncLocalAdminProducts(products) {
   const normalizedProducts = products.filter((product) => !isRetiredDefaultProduct(product)).map(normalizeAdminProduct).filter((product) => product.name);
   saveAdminProducts(normalizedProducts);
@@ -2908,6 +3175,7 @@ function syncLocalAdminProducts(products) {
   applyFilter(activeFilter);
   renderCart();
   renderAdminMetrics(latestAdminOrders);
+  renderPriceAudit(normalizedProducts);
 }
 
 function hydrateAdminProducts() {
@@ -2915,13 +3183,15 @@ function hydrateAdminProducts() {
   const savedProducts = loadAdminProducts();
   if (savedProducts.length) {
     renderAdminProductRows(savedProducts);
+    renderPriceAudit(savedProducts);
     return;
   }
   renderAdminProductRows([]);
+  renderPriceAudit([]);
 }
 
-async function syncProductsFromBackend() {
-  const backendProducts = await fetchBackendProducts();
+async function syncProductsFromBackend(options = {}) {
+  const backendProducts = await fetchBackendProducts(options);
   if (!backendProducts) return;
   syncLocalAdminProducts(backendProducts);
 }
@@ -3541,6 +3811,18 @@ document.addEventListener("click", async (event) => {
     window.location.href = "checkout.html";
   }
 
+  const editAuditProductButton = event.target.closest("[data-edit-audit-product]");
+  if (editAuditProductButton && productAdminTable) {
+    const productName = editAuditProductButton.dataset.editAuditProduct;
+    const productRow = $$("#productAdminTable .product-admin-row:not(.product-admin-head)").find((row) => row.dataset.name === productName);
+    const editButton = productRow?.querySelector("[data-edit-product]");
+    if (editButton) {
+      window.location.hash = "products-admin";
+      editButton.click();
+    }
+    return;
+  }
+
   const editProductButton = event.target.closest("[data-edit-product]");
   if (editProductButton && productAdminForm) {
     const row = editProductButton.closest(".product-admin-row");
@@ -3550,6 +3832,10 @@ document.addEventListener("click", async (event) => {
     productAdminForm.elements.category.value = row.dataset.category;
     productAdminForm.elements.price.value = row.dataset.price;
     productAdminForm.elements.mrp.value = row.dataset.mrp;
+    if (productAdminForm.elements.costPrice) productAdminForm.elements.costPrice.value = row.dataset.costPrice || "";
+    if (productAdminForm.elements.minMargin) productAdminForm.elements.minMargin.value = row.dataset.minMargin || "";
+    if (productAdminForm.elements.supplier) productAdminForm.elements.supplier.value = row.dataset.supplier || "";
+    if (productAdminForm.elements.lastPriceCheckedAt) productAdminForm.elements.lastPriceCheckedAt.value = row.dataset.lastPriceCheckedAt || "";
     productAdminForm.elements.stock.value = row.dataset.stock;
     productAdminForm.elements.hsn.value = row.dataset.hsn || DEFAULT_HSN;
     productAdminForm.elements.unit.value = row.dataset.unit || DEFAULT_UNIT;
@@ -4245,7 +4531,7 @@ function autoTrackInitialOrder() {
 
 adminSearch?.addEventListener("input", () => {
   const term = adminSearch.value.trim().toLowerCase();
-  $$(".admin-table > div, .stock-list > div, .enquiry-board > div, .product-admin-row:not(.product-admin-head), .brand-admin-row:not(.brand-admin-head), .ad-admin-row:not(.ad-admin-head)").forEach((row) => {
+  $$(".admin-table > div, .stock-list > div, .enquiry-board > div, .product-admin-row:not(.product-admin-head), .brand-admin-row:not(.brand-admin-head), .ad-admin-row:not(.ad-admin-head), .price-audit-row:not(.price-audit-head)").forEach((row) => {
     row.hidden = term && !row.textContent.toLowerCase().includes(term);
   });
 });
@@ -4268,7 +4554,7 @@ adminLoginForm?.addEventListener("submit", async (event) => {
     if (adminAuthMessage) adminAuthMessage.textContent = "";
     await syncAdsFromBackend();
     await syncBrandsFromBackend();
-    await syncProductsFromBackend();
+    await syncProductsFromBackend({ includePrivate: true });
     await refreshAdminOrders();
   } catch (error) {
     if (adminAuthMessage) adminAuthMessage.textContent = error.message;
@@ -4457,15 +4743,46 @@ productAdminForm?.elements.imageUpload?.addEventListener("change", (event) => {
   });
 });
 
+refreshPriceAuditButton?.addEventListener("click", () => {
+  supplierPriceComparison = null;
+  if (supplierPriceForm?.elements.supplierCsv) supplierPriceForm.elements.supplierCsv.value = "";
+  if (supplierPriceMessage) supplierPriceMessage.textContent = "Price audit refreshed.";
+  renderPriceAudit(loadAdminProducts());
+});
+
+supplierPriceForm?.elements.supplierCsv?.addEventListener("change", async (event) => {
+  const file = event.currentTarget.files?.[0];
+  if (!file) return;
+  if (supplierPriceMessage) supplierPriceMessage.textContent = `Reading ${file.name}...`;
+  try {
+    const csvText = await file.text();
+    supplierPriceComparison = compareSupplierPrices(csvText, loadAdminProducts());
+    const alerts = supplierPriceComparison.matches.filter((item) => item.issues.length).length;
+    if (supplierPriceMessage) {
+      supplierPriceMessage.textContent = `CSV checked: ${supplierPriceComparison.matches.length} matched, ${supplierPriceComparison.unmatched} unmatched, ${alerts} need attention.`;
+    }
+    renderPriceAudit(loadAdminProducts());
+  } catch (error) {
+    supplierPriceComparison = null;
+    if (supplierPriceMessage) supplierPriceMessage.textContent = `CSV check failed: ${error.message}`;
+    renderPriceAudit(loadAdminProducts());
+  }
+});
+
 productAdminForm?.addEventListener("submit", async (event) => {
   event.preventDefault();
   const formData = new FormData(event.currentTarget);
+  const costPrice = Number(formData.get("costPrice") || 0);
   const data = {
     name: formData.get("name").trim(),
     brand: formData.get("brand").trim(),
     category: formData.get("category"),
     price: Number(formData.get("price")),
     mrp: Number(formData.get("mrp")),
+    costPrice,
+    minMargin: Number(formData.get("minMargin") || 0),
+    supplier: String(formData.get("supplier") || "").trim(),
+    lastPriceCheckedAt: String(formData.get("lastPriceCheckedAt") || (costPrice ? new Date().toISOString().slice(0, 10) : "")).trim(),
     stock: Number(formData.get("stock")),
     hsn: String(formData.get("hsn") || DEFAULT_HSN).trim(),
     unit: String(formData.get("unit") || DEFAULT_UNIT).trim(),
