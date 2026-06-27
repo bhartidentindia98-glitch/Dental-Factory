@@ -3192,8 +3192,9 @@ function hydrateAdminProducts() {
 
 async function syncProductsFromBackend(options = {}) {
   const backendProducts = await fetchBackendProducts(options);
-  if (!backendProducts) return;
+  if (!backendProducts) return false;
   syncLocalAdminProducts(backendProducts);
+  return true;
 }
 
 function productCardTemplate(product) {
@@ -3857,7 +3858,10 @@ document.addEventListener("click", async (event) => {
     if (productAdminMessage) productAdminMessage.textContent = `Deleting ${productName} from backend...`;
     try {
       await deleteBackendProduct(productId || productName);
-      syncLocalAdminProducts(loadAdminProducts().filter((product) => product.name !== productName && product.id !== productId));
+      const reloaded = await syncProductsFromBackend({ includePrivate: true });
+      if (!reloaded) {
+        syncLocalAdminProducts(loadAdminProducts().filter((product) => product.name !== productName && product.id !== productId));
+      }
       if (productAdminForm?.elements.editing.value === productName) {
         resetAdminProductForm();
       }
@@ -4798,14 +4802,17 @@ productAdminForm?.addEventListener("submit", async (event) => {
 
   try {
     const savedProduct = normalizeAdminProduct(await saveBackendProduct(data, editing));
-    const products = loadAdminProducts();
-    const existingIndex = products.findIndex((product) => product.name === editing || product.name === savedProduct.name);
-    if (existingIndex >= 0) {
-      products[existingIndex] = savedProduct;
-    } else {
-      products.push(savedProduct);
+    const reloaded = await syncProductsFromBackend({ includePrivate: true });
+    if (!reloaded) {
+      const products = loadAdminProducts();
+      const existingIndex = products.findIndex((product) => product.name === editing || product.name === savedProduct.name);
+      if (existingIndex >= 0) {
+        products[existingIndex] = savedProduct;
+      } else {
+        products.push(savedProduct);
+      }
+      syncLocalAdminProducts(products);
     }
-    syncLocalAdminProducts(products);
     resetAdminProductForm();
     if (productAdminMessage) productAdminMessage.textContent = `${savedProduct.name} saved to backend.`;
   } catch (error) {
@@ -4854,6 +4861,7 @@ if (initialSearch && searchInput) searchInput.value = initialSearch;
 const initialBrand = searchParams().get("brand");
 if (initialBrand) activeBrand = initialBrand;
 const initialCategoryFilter = routeCategoryFilter();
+const isAdminPage = Boolean(adminAuth || adminDashboard);
 applyFilter(initialCategoryFilter || "all");
 syncPublicAds();
 syncBrandsFromBackend().then(() => {
@@ -4861,10 +4869,12 @@ syncBrandsFromBackend().then(() => {
   renderBrandsOnStorefront();
   applyFilter(activeFilter);
 });
-syncProductsFromBackend().then(() => {
-  renderProductDetailPage();
-  renderAdminMetrics(latestAdminOrders);
-});
+if (!isAdminPage) {
+  syncProductsFromBackend().then(() => {
+    renderProductDetailPage();
+    renderAdminMetrics(latestAdminOrders);
+  });
+}
 initAdminAuth();
 initCustomerPage();
 syncCustomerSessionForCurrentPage();
